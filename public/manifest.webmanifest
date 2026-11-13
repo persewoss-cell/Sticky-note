@@ -1,0 +1,17 @@
+{
+  "name": "스티커 메모",
+  "short_name": "스티커 메모",
+  "description": "Windows와 실시간으로 동기화되는 스티커 메모",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f5f7",
+  "theme_color": "#ffffff",
+  "lang": "ko",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [{ "name": "새 메모", "url": "./#new" }]
+}

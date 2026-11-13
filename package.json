@@ -1,0 +1,69 @@
+{
+  "name": "sticky-note",
+  "version": "1.0.0",
+  "description": "Windows + 휴대폰 실시간 동기화 스티커 메모",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "electron:dev": "concurrently -k \"vite --port 5173 --strictPort\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "electron": "npm run build && electron .",
+    "dist:win": "npm run build && electron-builder --win --publish never",
+    "deploy": "npm run build && npx -y firebase-tools deploy"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/persewoss-cell/Sticky-note.git"
+  },
+  "author": "sticky-note",
+  "bugs": {
+    "url": "https://github.com/persewoss-cell/Sticky-note/issues"
+  },
+  "homepage": "https://github.com/persewoss-cell/Sticky-note#readme",
+  "dependencies": {
+    "dompurify": "^3.4.17",
+    "firebase": "^11.10.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.5",
+    "cross-env": "^7.0.3",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "vite": "^6.4.6",
+    "wait-on": "^8.0.5"
+  },
+  "type": "module",
+  "private": true,
+  "build": {
+    "appId": "app.stickynote.sync",
+    "productName": "StickyNote",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "electron/**",
+      "build/icon.png",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "스티커 메모",
+      "createDesktopShortcut": true,
+      "artifactName": "StickyNote-Setup-${version}.${ext}"
+    }
+  }
+}

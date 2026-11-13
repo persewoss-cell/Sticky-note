@@ -1,0 +1,24 @@
+# GitHub에 push 하면 Windows 설치 파일(.exe)을 자동으로 만들어 줍니다.
+# Actions 탭 → 최근 실행 → 맨 아래 Artifacts 에서 StickyNote-Windows 다운로드
+name: Windows 설치 파일 빌드
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run dist:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StickyNote-Windows
+          path: release/*.exe
+          retention-days: 30
