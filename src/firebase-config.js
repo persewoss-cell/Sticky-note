@@ -4,10 +4,10 @@
 // 비워 두면 '이 기기에서만 저장' 모드로 동작합니다(동기화 없음).
 // ─────────────────────────────────────────────────────────────
 export const firebaseConfig = {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: '',
+  apiKey: 'AIzaSyB5EnheVNVccqkmi-M5XQ6doO530JaLQnU',
+  authDomain: 'sticky-note-hk.firebaseapp.com',
+  projectId: 'sticky-note-hk',
+  storageBucket: 'sticky-note-hk.firebasestorage.app',
+  messagingSenderId: '102354546797',
+  appId: '1:102354546797:web:1898225c0127040a6c4f64',
 };
