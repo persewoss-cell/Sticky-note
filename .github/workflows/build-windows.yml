@@ -2,8 +2,15 @@
 # Actions 탭 → 최근 실행 → 맨 아래 Artifacts 에서 StickyNote-Windows 다운로드
 name: Windows 설치 파일 빌드
 
+# 화면(src/) 변경은 웹 배포로 자동 반영되므로, Windows 전용 부분이 바뀔 때만 새 설치 파일을 만듭니다.
 on:
   push:
+    paths:
+      - 'electron/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'build/**'
+      - '.github/workflows/build-windows.yml'
   workflow_dispatch:
 
 jobs:

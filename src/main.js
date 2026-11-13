@@ -14,9 +14,11 @@ applyTheme();
 const params = new URLSearchParams(location.hash.slice(1));
 const noteParam = params.get('note');
 
-if ('serviceWorker' in navigator && !desktop && location.protocol === 'https:') {
+// 오프라인에서도 열리도록 (휴대폰 웹앱 + 웹 주소에서 불러온 Windows 앱)
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
+watchForUpdates();
 
 boot();
 
@@ -379,3 +381,28 @@ function renderList(store, session) {
 }
 
 function lastColor() { return localStorage.getItem('sticky.lastColor') || 'yellow'; }
+
+/* ───────── 새 버전 자동 적용 ─────────
+   서버의 index.html 이 가리키는 JS 파일 이름(해시)이 바뀌면 새 버전이 배포된 것.
+   입력 중에는 건드리지 않고, 창이 가려져 있거나 포커스가 없을 때 조용히 새로고침합니다. */
+function watchForUpdates() {
+  const mine = document.querySelector('script[type="module"][src*="assets/index-"]')?.getAttribute('src');
+  if (!mine || location.protocol !== 'https:') return; // 개발 모드·내장 버전에서는 사용 안 함
+  let pending = false;
+  const idle = () => document.hidden || !document.hasFocus();
+  const apply = () => { if (pending && idle()) location.reload(); };
+  async function check() {
+    if (pending || !navigator.onLine) return apply();
+    try {
+      const html = await (await fetch('./index.html', { cache: 'no-store' })).text();
+      const latest = html.match(/src="([^"]*assets\/index-[^"]+\.js)"/)?.[1];
+      if (latest && latest !== mine) pending = true;
+    } catch {}
+    apply();
+  }
+  setInterval(check, 15 * 60 * 1000);
+  setTimeout(check, 20 * 1000);
+  document.addEventListener('visibilitychange', () => (document.hidden ? apply() : check()));
+  window.addEventListener('blur', () => setTimeout(apply, 1500));
+  window.addEventListener('focus', check);
+}

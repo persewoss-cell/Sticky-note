@@ -34,7 +34,39 @@ function saveState() {
   }, 300);
 }
 
-const pageUrl = (hash = '') => (DEV_URL ? DEV_URL : 'app://local/index.html') + (hash ? '#' + hash : '');
+// 화면(UI)은 배포된 웹 주소에서 불러옴 → 웹을 배포하면 Windows 앱도 다시 설치 없이 새 버전.
+// 오프라인이면 서비스워커가 저장해 둔 마지막 버전, 그것도 없으면 설치 파일에 들어 있는 내장 버전을 사용.
+const REMOTE_URL = (() => {
+  try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'remote.json'), 'utf8')).url || null; } catch { return null; }
+})();
+const BUNDLED_URL = 'app://local/index.html';
+let useBundled = !REMOTE_URL;
+const baseUrl = () => DEV_URL || (useBundled ? BUNDLED_URL : REMOTE_URL);
+const pageUrl = (hash = '') => baseUrl() + (hash ? '#' + hash : '');
+const isAppUrl = (url) => url.startsWith('app://') || (DEV_URL && url.startsWith(DEV_URL)) || (REMOTE_URL && url.startsWith(new URL(REMOTE_URL).origin + '/'));
+
+function loadPage(win, hash) {
+  win.webContents.on('did-fail-load', (_e, code, _desc, url, isMainFrame) => {
+    if (!isMainFrame || code === -3 /* 취소 */ || useBundled || DEV_URL || !REMOTE_URL || !url.startsWith(REMOTE_URL)) return;
+    console.warn('웹 주소를 불러오지 못해 내장 버전을 사용합니다:', code);
+    useBundled = true;
+    win.loadURL(pageUrl(hash));
+  });
+  win.loadURL(pageUrl(hash));
+}
+
+// 내장 버전으로 시작했어도 인터넷이 돌아오면 웹 버전으로 복귀
+setInterval(async () => {
+  if (!useBundled || !REMOTE_URL || DEV_URL) return;
+  try {
+    const r = await net.fetch(REMOTE_URL, { cache: 'no-store' });
+    if (!r.ok) return;
+    useBundled = false;
+    const reopen = (w, hash) => w && !w.isDestroyed() && w.loadURL(pageUrl(hash));
+    reopen(listWin, '');
+    for (const [id, w] of noteWins) reopen(w, 'note=' + id);
+  } catch {}
+}, 5 * 60 * 1000);
 
 function visibleBounds(b) {
   // 모니터 구성이 바뀌어 화면 밖으로 나간 창은 안쪽으로
@@ -58,7 +90,7 @@ function guardNavigation(win) {
   // 메모 안의 링크는 기본 브라우저로 열기
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith('app://') && !(DEV_URL && url.startsWith(DEV_URL))) { e.preventDefault(); if (/^https?:/.test(url)) shell.openExternal(url); }
+    if (!isAppUrl(url)) { e.preventDefault(); if (/^https?:/.test(url)) shell.openExternal(url); }
   });
 }
 
@@ -76,7 +108,7 @@ function openList() {
     webPreferences: baseWebPrefs,
   });
   guardNavigation(listWin);
-  listWin.loadURL(pageUrl());
+  loadPage(listWin, '');
   listWin.once('ready-to-show', () => listWin.show());
   trackBounds(listWin, (bounds) => (state.list.bounds = bounds));
   listWin.on('closed', () => { listWin = null; });
@@ -105,7 +137,7 @@ function openNote(id, { isNew = false, near = null, focus = true } = {}) {
     webPreferences: baseWebPrefs,
   });
   guardNavigation(win);
-  win.loadURL(pageUrl('note=' + id + (isNew ? '&new=1' : '')));
+  loadPage(win, 'note=' + id + (isNew ? '&new=1' : ''));
   win.once('ready-to-show', () => (focus ? win.show() : win.showInactive()));
   noteWins.set(id, win);
   state.notes[id] = { ...(state.notes[id] || {}), open: true, bounds: b };

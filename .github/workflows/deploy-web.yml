@@ -1,0 +1,43 @@
+# GitHub에 push 하면 휴대폰 웹앱(= Windows 앱 화면)을 Firebase Hosting 에 자동 배포합니다.
+# 필요한 것: 저장소 Settings → Secrets and variables → Actions → FIREBASE_SERVICE_ACCOUNT
+name: 웹앱 자동 배포
+
+on:
+  push:
+    branches: [main, claude/windows-sticky-notes-app-sfn2n0]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      HAS_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+    steps:
+      - name: 비밀 키 확인
+        if: env.HAS_KEY != 'true'
+        run: echo "::warning::FIREBASE_SERVICE_ACCOUNT 비밀 키가 없어 배포를 건너뜁니다. README의 '자동 배포 설정'을 참고하세요."
+      - uses: actions/checkout@v4
+        if: env.HAS_KEY == 'true'
+      - uses: actions/setup-node@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - if: env.HAS_KEY == 'true'
+        run: npm ci
+      - if: env.HAS_KEY == 'true'
+        run: npm run build
+      - name: Firebase Hosting 배포
+        if: env.HAS_KEY == 'true'
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx -y firebase-tools@15 deploy --only hosting --non-interactive
+          rm -f "$RUNNER_TEMP/sa.json"

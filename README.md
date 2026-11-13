@@ -51,7 +51,18 @@ npm run deploy
 
 휴대폰 크롬에서 그 주소 접속 → 같은 계정으로 로그인 → 메뉴(⋮) → **홈 화면에 추가** (아이폰은 사파리 공유 → 홈 화면에 추가). 이제 앱처럼 실행됩니다.
 
-> 앱을 고친 뒤에는 `npm run deploy` 만 다시 하면 휴대폰에 반영되고, Windows 앱은 Actions에서 새로 받은 설치 파일로 덮어 설치하면 됩니다.
+### 5. 자동 배포 설정 (한 번만) — 이후 코드 수정은 push 만 하면 끝
+1. Firebase 콘솔 → 톱니바퀴 **프로젝트 설정 → 서비스 계정** 탭 → **새 비공개 키 생성** → JSON 파일이 다운로드됨
+2. GitHub 저장소 → **Settings → Secrets and variables → Actions → New repository secret**
+   - Name: `FIREBASE_SERVICE_ACCOUNT`
+   - Secret: 받은 JSON 파일을 메모장으로 열어 **내용 전체**를 붙여넣기 → Add secret
+3. 받은 JSON 파일은 지우세요 (비밀번호와 같은 파일입니다. 채팅이나 저장소에 올리지 마세요.)
+
+**이후 업데이트 방식**
+- GitHub에 push → "웹앱 자동 배포"가 실행되어 1~2분 뒤 휴대폰·Windows 앱 모두 새 버전
+- 앱은 15분마다 새 버전을 확인하고, **입력 중이 아닐 때(창이 가려지거나 포커스가 없을 때)** 조용히 새로고침합니다.
+- Windows 앱은 화면을 `https://sticky-note-hk.web.app` 에서 불러옵니다 (`electron/remote.json`). 인터넷이 끊기면 마지막으로 받은 버전, 처음부터 오프라인이면 설치 파일에 들어 있는 버전으로 열립니다.
+- Windows 전용 기능(`electron/` 폴더: 창·트레이·자동 실행)을 바꿀 때만 새 설치 파일이 만들어지고, 그때만 다시 설치하면 됩니다.
 
 ---
 
