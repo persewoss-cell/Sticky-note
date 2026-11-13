@@ -16,7 +16,7 @@ const noteParam = params.get('note');
 
 // 오프라인에서도 열리도록 (휴대폰 웹앱 + 웹 주소에서 불러온 Windows 앱)
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(() => {}); // sw.js 는 항상 서버에서 확인
 }
 watchForUpdates();
 
