@@ -25,5 +25,7 @@ export const I = {
   underline: '<u style="font-size:17px;font-family:Georgia,serif">U</u>',
   strike: '<s style="font-size:17px;font-family:Georgia,serif">ab</s>',
   logout: svg('<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H3"/>'),
+  restore: svg('<path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5"/><path d="M4 4v4.5h4.5"/>'),
+  notePen: svg('<path d="M14 20H6.5A1.5 1.5 0 0 1 5 18.5v-13A1.5 1.5 0 0 1 6.5 4h10A1.5 1.5 0 0 1 18 5.5V10"/><path d="M8.5 8.5h6M8.5 12h4"/><path d="M19.6 12.9l1.5 1.5-5.6 5.6-2.2.7.7-2.2z"/>'),
   cloud: svg('<path d="M7 18a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 9.5a4 4 0 0 1-.5 8.5z"/>'),
 };

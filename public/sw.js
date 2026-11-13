@@ -1,5 +1,5 @@
 // 오프라인에서도 앱이 열리도록 하는 서비스 워커 (메모 데이터는 Firestore 가 자체 캐시)
-const CACHE = 'sticky-v1';
+const CACHE = 'sticky-v2'; // 바꾸면 예전 캐시(옛 아이콘 등)가 지워짐
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './index.html', './manifest.webmanifest'])));
   self.skipWaiting();

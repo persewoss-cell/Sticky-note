@@ -220,3 +220,19 @@ body.is-desktop { overflow: hidden; }
 .is-desktop ::-webkit-scrollbar { width: 8px; }
 .is-desktop ::-webkit-scrollbar-thumb { background: rgba(127,127,127,.35); border-radius: 4px; }
 .is-desktop ::-webkit-scrollbar-track { background: transparent; }
+
+/* ── 휴지통 ── */
+.badge-wrap { position: relative; }
+.badge { position: absolute; top: 3px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--danger); color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; pointer-events: none; }
+.is-desktop .badge { top: 1px; right: 1px; min-width: 14px; height: 14px; line-height: 14px; font-size: 9px; }
+.trash-info { margin: 0 0 10px; }
+.trash-actions { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 12px; }
+.btn-danger-outline { color: var(--danger); border-color: var(--danger); }
+.trash-list { padding: 0 0 20px; gap: 10px; }
+.trash-card { height: auto; max-height: 150px; min-height: 80px; opacity: .85; }
+.trash-card .card-meta .time, .trash-card .card-meta span { display: inline; }
+.cards.grid .trash-card .card-meta span { display: inline; }
+.is-desktop .sheet { overflow-y: auto; }
+.is-desktop .trash-list { padding: 0 0 16px; }
+.is-desktop .sheet-head { -webkit-app-region: drag; }
+.is-desktop .sheet-head button { -webkit-app-region: no-drag; }

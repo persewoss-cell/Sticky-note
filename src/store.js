@@ -2,8 +2,10 @@
 //   subscribe(cb) -> unsubscribe   cb(notes: Note[])
 //   create(id?, data) -> id
 //   update(id, patch)
-//   remove(id)
-// Note = { id, html, text, color, pinned, createdAt, updatedAt }
+//   remove(id)            영구 삭제
+//   trash(id) / restore(id)  휴지통으로 이동 / 복원 (deletedAt 표시만 하므로 모든 기기에 동기화됨)
+// Note = { id, html, text, color, pinned, createdAt, updatedAt, deletedAt? }
+export const TRASH_DAYS = 30;
 import { firebaseConfig } from './firebase-config.js';
 
 export const newId = () =>
@@ -58,6 +60,12 @@ export class LocalStore {
     const map = this.read();
     delete map[id];
     this.write(map);
+  }
+  async trash(id) { this.mark(id, { deletedAt: Date.now() }); }
+  async restore(id) { this.mark(id, { deletedAt: null }); }
+  mark(id, patch) { // 수정 시각은 바꾸지 않음
+    const map = this.read();
+    if (map[id]) { map[id] = { ...map[id], ...patch }; this.write(map); }
   }
   count() { return Object.keys(this.read()).length; }
   all() { return Object.entries(this.read()).map(([id, n]) => ({ id, ...n })); }
@@ -116,6 +124,11 @@ export class CloudStore {
   }
   async remove(id) {
     this.fs.deleteDoc(this.fs.doc(this.col, id)).catch(console.error);
+  }
+  async trash(id) { this.mark(id, { deletedAt: Date.now() }); }
+  async restore(id) { this.mark(id, { deletedAt: null }); }
+  mark(id, patch) { // 수정 시각은 바꾸지 않음
+    this.fs.updateDoc(this.fs.doc(this.col, id), patch).catch((e) => { if (e.code !== 'not-found') console.error(e); });
   }
   async importMany(notes) {
     for (let i = 0; i < notes.length; i += 400) { // 배치당 최대 500건 제한

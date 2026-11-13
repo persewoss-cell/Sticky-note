@@ -29,9 +29,9 @@ export function renderNoteWindow(root, store, id, isNew) {
   }
 
   async function del() {
-    if (settings.get().confirmDelete && !(await confirmDialog('이 메모를 삭제할까요?'))) return;
+    if (settings.get().confirmDelete && !(await confirmDialog('이 메모를 휴지통으로 옮길까요?'))) return;
     closing = true;
-    store.remove(id);
+    store.trash(id);
     desktop.closeWindow();
   }
 
@@ -50,7 +50,7 @@ export function renderNoteWindow(root, store, id, isNew) {
   }
 
   store.subscribe((list) => {
-    const n = list.find((x) => x.id === id);
+    const n = list.find((x) => x.id === id && !x.deletedAt); // 휴지통에 들어간 메모는 없는 것으로 취급
     if (!n) { if (seen && !closing) { closing = true; desktop.closeWindow(); } return; } // 다른 곳에서 삭제됨
     seen = true; note = n;
     applyNoteColor(win, n.color);

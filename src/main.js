@@ -1,5 +1,5 @@
 import './styles.css';
-import { LocalStore, CloudStore, cloudConfigured, initFirebase, newId } from './store.js';
+import { LocalStore, CloudStore, cloudConfigured, initFirebase, newId, TRASH_DAYS } from './store.js';
 import { h, sanitize, formatTime, applyNoteColor, applyTheme, settings, isEmptyHtml, toast } from './util.js';
 import { I } from './icons.js';
 import { Editor } from './editor.js';
@@ -81,7 +81,7 @@ function renderAuth(fb) {
   app.replaceChildren(h('div', { class: 'auth' },
     desktop ? titleBar() : null,
     h('div', { class: 'auth-card' },
-      h('div', { class: 'auth-logo', html: I.cloud }),
+      h('div', { class: 'auth-logo', html: I.notePen }),
       h('h1', {}, '스티커 메모'),
       h('p', { class: 'muted' }, '휴대폰과 컴퓨터에서 같은 계정으로 로그인하면 메모가 실시간으로 동기화됩니다.'),
       form,
@@ -125,7 +125,10 @@ function titleBar(extraLeft = [], extraRight = []) {
 }
 
 function renderList(store, session) {
-  let notes = [];
+  let notes = [];   // 휴지통에 없는 메모
+  let trashed = []; // 휴지통의 메모
+  let trashView = null;
+  const purged = new Set();
   let query = '';
   let selected = new Set();
   let editor = null; // 휴대폰 편집 화면
@@ -165,13 +168,15 @@ function renderList(store, session) {
         ]) }));
       return;
     }
+    const trashBtn = h('button', { class: 'icon-btn badge-wrap', title: `휴지통 (${trashed.length})`, html: I.trash, onClick: openTrash },
+      trashed.length ? h('span', { class: 'badge' }, trashed.length > 99 ? '99+' : String(trashed.length)) : null);
     const name = session?.user?.email || '';
     const avatar = h('button', { class: 'avatar', title: name || '설정', onClick: openSettings },
       session ? name.slice(0, 2) : h('span', { html: I.gear }));
     if (isDesktop) {
       header.replaceChildren(titleBar(
         [h('button', { class: 'icon-btn', title: '새 메모 (Ctrl+N)', html: I.plus, onClick: newNote })],
-        [h('button', { class: 'icon-btn', title: '설정', html: I.gear, onClick: openSettings })]),
+        [trashBtn, h('button', { class: 'icon-btn', title: '설정', html: I.gear, onClick: openSettings })]),
         h('h1', { class: 'list-title' }, '스티커 메모'));
     } else {
       header.replaceChildren(avatar, h('div', { class: 'grow' }),
@@ -183,7 +188,8 @@ function renderList(store, session) {
         h('button', { class: 'icon-btn', title: '보기 방식', html: s().layout === 'grid' ? I.grid : I.grid2, onClick: () => {
           settings.set({ layout: s().layout === 'grid' ? 'list' : 'grid' }); draw(); } }),
         h('button', { class: 'icon-btn', title: '검색', html: I.search, onClick: () => {
-          searchRow.classList.toggle('open'); if (searchRow.classList.contains('open')) search.focus(); else { search.value = ''; query = ''; draw(); } } }));
+          searchRow.classList.toggle('open'); if (searchRow.classList.contains('open')) search.focus(); else { search.value = ''; query = ''; draw(); } } }),
+        trashBtn);
     }
   }
 
@@ -262,8 +268,9 @@ function renderList(store, session) {
 
   async function deleteNotes(list) {
     if (!list.length) return;
-    if (s().confirmDelete && !(await confirmDialog(list.length > 1 ? `메모 ${list.length}개를 삭제할까요?` : '이 메모를 삭제할까요?'))) return;
-    list.forEach((n) => { store.remove(n.id); desktop?.noteDeleted(n.id); });
+    if (s().confirmDelete && !(await confirmDialog(list.length > 1 ? `메모 ${list.length}개를 휴지통으로 옮길까요?` : '이 메모를 휴지통으로 옮길까요?'))) return;
+    list.forEach((n) => { store.trash(n.id); desktop?.noteDeleted(n.id); });
+    toast(`휴지통으로 옮겼습니다 (${TRASH_DAYS}일 후 영구 삭제)`);
     clearSel();
   }
 
@@ -284,8 +291,8 @@ function renderList(store, session) {
       h('button', { class: 'icon-btn', title: '더보기', html: I.moreV, onClick: (e) => showMenu(e.currentTarget, [
         { label: '공유', icon: I.share, onClick: () => { ed.save.flush(); shareNotes([cur()]); } },
         { label: '메모 삭제', icon: I.trash, danger: true, onClick: async () => {
-          if (s().confirmDelete && !(await confirmDialog('이 메모를 삭제할까요?'))) return;
-          store.remove(id); history.back(); } },
+          if (s().confirmDelete && !(await confirmDialog('이 메모를 휴지통으로 옮길까요?'))) return;
+          editor?.close(); store.trash(id); toast('휴지통으로 옮겼습니다'); } },
       ]) }));
     pinBtn.addEventListener('click', () => store.update(id, { pinned: !cur().pinned, updatedAt: cur().updatedAt }));
     screen.append(bar, h('div', { class: 'note-scroll' }, ed.body), ed.toolbar);
@@ -372,12 +379,62 @@ function renderList(store, session) {
   if (!isDesktop && location.hash === '#new') { history.replaceState(null, '', location.pathname); newNote(); } // 홈 화면 아이콘 바로가기
 
   store.subscribe((list) => {
-    notes = list;
+    notes = list.filter((n) => !n.deletedAt);
+    trashed = list.filter((n) => n.deletedAt).sort((a, b) => b.deletedAt - a.deletedAt);
+    const expire = Date.now() - TRASH_DAYS * 864e5;
+    trashed.filter((n) => n.deletedAt < expire && !purged.has(n.id)).forEach((n) => { purged.add(n.id); store.remove(n.id); });
     draw();
+    trashView?.draw();
     if (!editor) return;
     if (notes.some((n) => n.id === editor.id)) { editor.seen = true; editor.refresh(); }
     else if (editor.seen) { toast('다른 기기에서 삭제된 메모입니다'); editor.close(); }
   }, (err) => toast('동기화 오류: ' + (err.code === 'permission-denied' ? 'Firestore 보안 규칙을 확인하세요' : err.message), 5000));
+
+  /* 휴지통 */
+  function openTrash() {
+    closeMenu();
+    const box = h('div', { class: 'trash' });
+    const daysLeft = (n) => Math.max(0, Math.ceil((n.deletedAt + TRASH_DAYS * 864e5 - Date.now()) / 864e5));
+    const restore = (list) => { list.forEach((n) => store.restore(n.id)); toast(list.length > 1 ? `메모 ${list.length}개를 복원했습니다` : '메모를 복원했습니다'); };
+    const purge = async (list, msg) => {
+      if (!(await confirmDialog(msg, { ok: '영구 삭제' }))) return;
+      list.forEach((n) => { purged.add(n.id); store.remove(n.id); });
+    };
+    trashView = {
+      draw() {
+        const items = trashed.map((n) => {
+          const el = h('div', { class: 'card trash-card', tabindex: 0 },
+            h('div', { class: 'card-bar' }),
+            h('div', { class: 'card-meta' }, h('span', {}, `${daysLeft(n)}일 후 삭제`)),
+            h('div', { class: 'card-content', html: sanitize(n.html) || '<span class="muted">빈 메모</span>' }),
+            h('div', { class: 'card-fade' }));
+          applyNoteColor(el, n.color);
+          const menu = (e) => {
+            e.preventDefault();
+            showMenu(e.type === 'contextmenu' ? { x: e.clientX, y: e.clientY } : el, [
+              { label: '복원', icon: I.restore, onClick: () => restore([n]) },
+              { label: '영구 삭제', icon: I.trash, danger: true, onClick: () => purge([n], '이 메모를 영구 삭제할까요? 되돌릴 수 없습니다.') },
+            ], { align: 'left' });
+          };
+          el.addEventListener('click', menu);
+          el.addEventListener('contextmenu', menu);
+          return el;
+        });
+        box.replaceChildren(
+          h('p', { class: 'muted small trash-info' }, `휴지통의 메모는 ${TRASH_DAYS}일 후 자동으로 영구 삭제됩니다. 메모를 누르면 복원할 수 있어요.`),
+          trashed.length ? h('div', { class: 'trash-actions' },
+            h('button', { class: 'btn', onClick: () => restore(trashed) }, '모두 복원'),
+            h('button', { class: 'btn btn-danger-outline', onClick: () => purge(trashed, `휴지통의 메모 ${trashed.length}개를 모두 영구 삭제할까요? 되돌릴 수 없습니다.`) }, '휴지통 비우기')) : null,
+          h('div', { class: 'cards list trash-list' }, items.length ? items : h('div', { class: 'empty-state' }, '휴지통이 비어 있습니다.')));
+      },
+    };
+    trashView.draw();
+    const close = sheet('휴지통', box);
+    // 시트가 닫히면 갱신 중단
+    const obs = new MutationObserver(() => { if (!box.isConnected) { trashView = null; obs.disconnect(); } });
+    obs.observe(document.body, { childList: true });
+    void close;
+  }
 }
 
 function lastColor() { return localStorage.getItem('sticky.lastColor') || 'yellow'; }
