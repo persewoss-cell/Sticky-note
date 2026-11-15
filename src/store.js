@@ -5,7 +5,6 @@
 //   remove(id)            영구 삭제
 //   trash(id) / restore(id)  휴지통으로 이동 / 복원 (deletedAt 표시만 하므로 모든 기기에 동기화됨)
 // Note = { id, html, text, color, pinned, createdAt, updatedAt, deletedAt? }
-export const TRASH_DAYS = 30;
 // 지운 내용 기록: 기간 제한 없음. 1명당 약 200MB 를 넘으면 가장 오래된 기록부터 삭제
 export const DELETION_CAP_BYTES = 200 * 1024 * 1024;
 const LOCAL_DELETION_CAP = 1.5 * 1024 * 1024; // 로그인 없이 쓸 때(브라우저 저장 공간 한도)

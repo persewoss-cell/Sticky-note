@@ -1,5 +1,5 @@
 import './styles.css';
-import { LocalStore, CloudStore, cloudConfigured, initFirebase, newId, TRASH_DAYS } from './store.js';
+import { LocalStore, CloudStore, cloudConfigured, initFirebase, newId } from './store.js';
 import { h, sanitize, formatTime, applyNoteColor, applyTheme, settings, isEmptyHtml, toast } from './util.js';
 import { I } from './icons.js';
 import { Editor } from './editor.js';
@@ -274,7 +274,7 @@ function renderList(store, session) {
     if (!list.length) return;
     if (s().confirmDelete && !(await confirmDialog(list.length > 1 ? `메모 ${list.length}개를 휴지통으로 옮길까요?` : '이 메모를 휴지통으로 옮길까요?'))) return;
     list.forEach((n) => { store.trash(n.id); desktop?.noteDeleted(n.id); });
-    toast(`휴지통으로 옮겼습니다 (${TRASH_DAYS}일 후 영구 삭제)`);
+    toast('휴지통으로 옮겼습니다');
     clearSel();
   }
 
@@ -387,8 +387,6 @@ function renderList(store, session) {
   store.subscribe((list) => {
     notes = list.filter((n) => !n.deletedAt);
     trashed = list.filter((n) => n.deletedAt).sort((a, b) => b.deletedAt - a.deletedAt);
-    const expire = Date.now() - TRASH_DAYS * 864e5;
-    trashed.filter((n) => n.deletedAt < expire && !purged.has(n.id)).forEach((n) => { purged.add(n.id); store.remove(n.id); });
     draw();
     trashView?.draw();
     if (!editor) return;
@@ -400,7 +398,6 @@ function renderList(store, session) {
   function openTrash() {
     closeMenu();
     const box = h('div', { class: 'trash' });
-    const daysLeft = (n) => Math.max(0, Math.ceil((n.deletedAt + TRASH_DAYS * 864e5 - Date.now()) / 864e5));
     const restore = (list) => { list.forEach((n) => store.restore(n.id)); toast(list.length > 1 ? `메모 ${list.length}개를 복원했습니다` : '메모를 복원했습니다'); };
     const purge = async (list, msg) => {
       if (!(await confirmDialog(msg, { ok: '영구 삭제' }))) return;
@@ -411,7 +408,7 @@ function renderList(store, session) {
         const items = trashed.map((n) => {
           const el = h('div', { class: 'card trash-card', tabindex: 0 },
             h('div', { class: 'card-bar' }),
-            h('div', { class: 'card-meta' }, h('span', {}, `${daysLeft(n)}일 후 삭제`)),
+            h('div', { class: 'card-meta' }, h('span', {}, `${formatTime(n.deletedAt)} 삭제`)),
             h('div', { class: 'card-content', html: sanitize(n.html) || '<span class="muted">빈 메모</span>' }),
             h('div', { class: 'card-fade' }));
           applyNoteColor(el, n.color);
@@ -427,7 +424,7 @@ function renderList(store, session) {
           return el;
         });
         box.replaceChildren(
-          h('p', { class: 'muted small trash-info' }, `휴지통의 메모는 ${TRASH_DAYS}일 후 자동으로 영구 삭제됩니다. 메모를 누르면 복원할 수 있어요.`),
+          h('p', { class: 'muted small trash-info' }, '휴지통의 메모는 직접 비우기 전까지 보관됩니다. 메모를 누르면 복원하거나 영구 삭제할 수 있어요.'),
           trashed.length ? h('div', { class: 'trash-actions' },
             h('button', { class: 'btn', onClick: () => restore(trashed) }, '모두 복원'),
             h('button', { class: 'btn btn-danger-outline', onClick: () => purge(trashed, `휴지통의 메모 ${trashed.length}개를 모두 영구 삭제할까요? 되돌릴 수 없습니다.`) }, '휴지통 비우기')) : null,
