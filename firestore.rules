@@ -9,13 +9,17 @@ service cloud.firestore {
       allow create, update: if isOwner(uid)
         && request.resource.data.html is string
         && request.resource.data.html.size() < 900000;
+    }
 
-      // 수정 기록: 본인만
-      match /versions/{versionId} {
-        allow read, delete: if isOwner(uid);
-        allow create: if isOwner(uid) && request.resource.data.html is string
-          && request.resource.data.html.size() < 900000;
-      }
+    // 지운 내용 기록: 본인만
+    match /users/{uid}/deletions/{id} {
+      allow read, delete: if isOwner(uid);
+      allow create: if isOwner(uid) && request.resource.data.noteId is string;
+    }
+
+    // 사용량 기록 (지운 내용 기록이 차지하는 크기)
+    match /users/{uid}/meta/{doc} {
+      allow read, write: if isOwner(uid);
     }
   }
 }

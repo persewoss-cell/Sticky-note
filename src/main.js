@@ -289,8 +289,8 @@ function renderList(store, session) {
     const bar = h('div', { class: 'note-topbar' },
       h('button', { class: 'icon-btn', title: '뒤로', html: I.back, onClick: () => history.back() }),
       h('div', { class: 'grow' }),
-      h('button', { class: 'icon-btn', title: '수정 기록', html: I.history, onClick: () => {
-        ed.save.flush(); openHistory({ store, id, keeper: ed.history, onRestore: (html) => ed.replaceContent(html) }); } }),
+      h('button', { class: 'icon-btn', title: '지운 내용 기록', html: I.history, onClick: () => {
+        ed.save.flush(); openHistory({ store, id, log: ed.history, editor: ed }); } }),
       pinBtn,
       h('button', { class: 'icon-btn', title: '색상', html: I.palette, onClick: (e) => showMenu(e.currentTarget, [
         { colors: cur().color, onPick: (c) => { store.update(id, { color: c }); localStorage.setItem('sticky.lastColor', c); } }]) }),

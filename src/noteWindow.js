@@ -15,7 +15,7 @@ export function renderNoteWindow(root, store, id, isNew) {
   const bar = h('div', { class: 'note-titlebar' },
     h('button', { class: 'icon-btn', title: '새 메모 (Ctrl+N)', html: I.plus, onClick: () => desktop.newNote() }),
     h('div', { class: 'drag' }),
-    h('button', { class: 'icon-btn', title: '수정 기록 (Ctrl+Shift+H)', html: I.history, onClick: () => showHistory() }),
+    h('button', { class: 'icon-btn', title: '지운 내용 기록 (Ctrl+Shift+H)', html: I.history, onClick: () => showHistory() }),
     h('button', { class: 'icon-btn', title: '메뉴', html: I.more, onClick: (e) => openMenu(e.currentTarget) }),
     maximizeButton(),
     h('button', { class: 'icon-btn', title: '닫기 (Ctrl+W)', html: I.close, onClick: () => close() }));
@@ -25,7 +25,7 @@ export function renderNoteWindow(root, store, id, isNew) {
 
   function showHistory() {
     ed.save.flush();
-    openHistory({ store, id, keeper: ed.history, onRestore: (html) => ed.replaceContent(html) });
+    openHistory({ store, id, log: ed.history, editor: ed });
   }
 
   function openMenu(anchor) {

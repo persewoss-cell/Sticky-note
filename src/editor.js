@@ -6,7 +6,8 @@ import { I } from './icons.js';
 import { h, sanitize, htmlToText, compressImage, debounce, toast } from './util.js';
 import { showMenu, closeMenu } from './ui.js';
 import { FONT_GROUPS, FONTS, ensureFont, previewFont, ensureFontsIn, fontStack } from './fonts.js';
-import { VersionKeeper } from './history.js';
+import { DeletionLog } from './history.js';
+import { wrapInlineRuns, splitAtBreaks, leafBlocks, normalizeAll, blockText } from './lines.js';
 
 export const TEXT_COLORS = [
   { name: '기본', value: null }, { name: '빨강', value: '#e03131' }, { name: '주황', value: '#e8590c' },
@@ -23,7 +24,6 @@ const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 48, 60, 72]
 const MARK_COLOR = 'rgb(1, 2, 3)', MARK_FONT = 'sticky-default-font', MARK_SIZE = 'xxx-large';
 
 const isTouch = matchMedia('(pointer: coarse)').matches;
-const BLOCK_TAGS = /^(DIV|P|LI|UL|OL|H[1-6]|BLOCKQUOTE)$/;
 
 export class Editor {
   constructor(store, id) {
@@ -33,7 +33,7 @@ export class Editor {
     this.savedRange = null;
     this.pendingSize = null;
     this.save = debounce(() => this.saveNow(), 400);
-    this.history = new VersionKeeper(store, id, () => this.currentHtml());
+    this.history = new DeletionLog(store, id, () => this.currentHtml());
 
     this.body = h('div', {
       class: 'editor-body', contenteditable: 'true', spellcheck: 'false',
@@ -256,13 +256,35 @@ export class Editor {
   }
 
   currentHtml() { return sanitize(this.body.innerHTML); }
-  // 기록에서 되돌리기
-  replaceContent(html) {
+  // 지운 내용 기록에서 '메모에 다시 넣기' → 'same' | 'near' | 'end'
+  reinsert(it) {
     this.save.flush();
-    ensureFontsIn(html);
-    this.body.innerHTML = sanitize(html);
+    normalizeAll(this.body);
+    const blocks = leafBlocks(this.body);
+    const find = (text) => (text == null ? null : blocks.find((b) => blockText(b) === text));
+    let where = 'end';
+    let lines = it.type === 'line' ? it.lines : null;
+    if (it.type === 'part') {
+      const target = find(it.now);
+      if (target) { // 지운 글자를 원래 위치에 다시 끼워 넣음 (뒤쪽부터)
+        let removedBefore = it.spans.reduce((t, [s, e]) => t + (e - s), 0);
+        for (const [s, e] of [...it.spans].reverse()) {
+          removedBefore -= e - s;
+          insertTextAt(target, s - removedBefore, it.line.slice(s, e));
+        }
+        where = 'same';
+      } else lines = [it.line]; // 그 줄이 그 뒤로 또 바뀌었으면 원래 줄 전체를 근처에
+    }
+    if (lines) {
+      const mk = () => lines.map((l) => { const d = document.createElement('div'); d.textContent = l; if (!l) d.innerHTML = '<br>'; return d; });
+      const prev = find(it.prev), next = find(it.next);
+      if (prev) { prev.after(...mk()); where = it.type === 'line' ? 'same' : 'near'; }
+      else if (next) { next.before(...mk()); where = it.type === 'line' ? 'same' : 'near'; }
+      else this.body.append(...mk());
+    }
     this.updateEmpty();
     this.saveNow();
+    return where;
   }
   updateEmpty() { this.body.classList.toggle('empty', !this.body.textContent.trim() && !this.body.querySelector('img, .todo')); }
 
@@ -434,56 +456,15 @@ export class Editor {
      메모는 "<div>줄</div>" 이 기본이지만, 붙여넣거나 예전에 쓴 메모는
      "<div>줄1<br>줄2<br>줄3</div>" 처럼 여러 줄이 한 덩어리인 경우가 많음.
      체크박스는 한 줄 단위여야 하므로, 필요한 부분만 진짜 한 줄(div)씩 나눔. */
-  isBlock(n) { return n?.nodeType === 1 && BLOCK_TAGS.test(n.tagName); }
-  // 블록 자식과 글자가 섞인 곳의 글자 묶음을 div 로 감쌈
-  wrapInlineRuns(container) {
-    if (![...container.childNodes].some((n) => this.isBlock(n)) && container !== this.body) return;
-    let run = [];
-    const flush = () => {
-      if (run.length && run.some((n) => n.nodeType !== 3 || n.data.trim() || run.length > 1)) {
-        const d = document.createElement('div'); run[0].before(d); d.append(...run);
-      }
-      run = [];
-    };
-    for (const n of [...container.childNodes]) {
-      if (this.isBlock(n)) { flush(); if (!/^(UL|OL)$/.test(n.tagName)) this.wrapInlineRuns(n); }
-      else run.push(n);
-    }
-    flush();
-  }
-  // 한 블록 안의 <br> 줄바꿈을 기준으로 블록을 줄마다 나눔 (서식은 그대로 복제됨)
-  splitAtBreaks(block) {
-    const out = [block];
-    let cur = block, br;
-    while ((br = cur.querySelector('br'))) {
-      const rest = document.createRange();
-      rest.setStartAfter(br); rest.setEnd(cur, cur.childNodes.length);
-      const hasAfter = !rest.collapsed && (rest.toString().length > 0 || rest.cloneContents().querySelector?.('img, br'));
-      if (!hasAfter) break; // 줄 끝의 자리표시용 <br> 은 그대로 둠
-      const frag = rest.extractContents();
-      br.remove();
-      const next = cur.cloneNode(false);
-      next.removeAttribute('data-done');
-      next.append(frag);
-      if (!next.textContent && !next.querySelector('img, br')) next.append(document.createElement('br'));
-      if (!cur.textContent && !cur.querySelector('img, br')) cur.append(document.createElement('br'));
-      cur.after(next);
-      out.push(next); cur = next;
-    }
-    return out;
-  }
-  leafBlocks(range) {
-    return [...this.body.querySelectorAll('div, p, li, h1, h2, h3, h4, h5, h6, blockquote')]
-      .filter((b) => !b.querySelector('div, p, li, h1, h2, h3, h4, h5, h6, blockquote, ul, ol') && range.intersectsNode(b));
-  }
+  leafBlocks(range) { return leafBlocks(this.body).filter((b) => range.intersectsNode(b)); }
   // 선택한 범위의 줄들을 한 줄씩 정리하고 그 줄 목록을 돌려줌
   linesInSelection() {
     const off = getOffsets(this.body);
     if (!off) return [];
-    this.wrapInlineRuns(this.body);
+    wrapInlineRuns(this.body);
     setOffsets(this.body, off);
     let r = document.getSelection().getRangeAt(0);
-    this.leafBlocks(r).forEach((b) => this.splitAtBreaks(b));
+    this.leafBlocks(r).forEach(splitAtBreaks);
     setOffsets(this.body, off);
     r = document.getSelection().getRangeAt(0);
     return this.leafBlocks(r);
@@ -608,4 +589,14 @@ function setOffsets(root, [start, end]) {
   const r = document.createRange();
   r.setStart(...find(start, true)); r.setEnd(...find(end, false));
   const sel = document.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+}
+
+function insertTextAt(block, offset, text) {
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+  let node, left = offset, last = null;
+  while ((node = walker.nextNode())) {
+    if (left <= node.length) { node.insertData(left, text); return; }
+    left -= node.length; last = node;
+  }
+  if (last) last.appendData(text); else block.prepend(document.createTextNode(text));
 }

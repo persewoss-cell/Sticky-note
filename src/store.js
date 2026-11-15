@@ -6,10 +6,10 @@
 //   trash(id) / restore(id)  휴지통으로 이동 / 복원 (deletedAt 표시만 하므로 모든 기기에 동기화됨)
 // Note = { id, html, text, color, pinned, createdAt, updatedAt, deletedAt? }
 export const TRASH_DAYS = 30;
-// 수정 기록(버전): 30일 보관, 메모당 최대 300개
-export const HISTORY_DAYS = 30;
-export const HISTORY_MAX = 300;
-const historyCutoff = () => Date.now() - HISTORY_DAYS * 864e5;
+// 지운 내용 기록: 기간 제한 없음. 1명당 약 200MB 를 넘으면 가장 오래된 기록부터 삭제
+export const DELETION_CAP_BYTES = 200 * 1024 * 1024;
+const LOCAL_DELETION_CAP = 1.5 * 1024 * 1024; // 로그인 없이 쓸 때(브라우저 저장 공간 한도)
+const sizeOf = (o) => new Blob([JSON.stringify(o)]).size;
 import { firebaseConfig } from './firebase-config.js';
 
 export const newId = () =>
@@ -64,25 +64,17 @@ export class LocalStore {
     const map = this.read();
     delete map[id];
     this.write(map);
-    const v = this.readVersions(); delete v[id]; this.writeVersions(v);
+    this.writeDeletions(this.readDeletions().filter((r) => r.noteId !== id));
   }
-  /* 수정 기록 (이 기기에만) */
-  readVersions() { try { return JSON.parse(localStorage.getItem(LOCAL_KEY + '.versions')) || {}; } catch { return {}; } }
-  writeVersions(v) {
-    try { localStorage.setItem(LOCAL_KEY + '.versions', JSON.stringify(v)); }
-    catch { // 저장 공간이 꽉 차면 가장 오래된 기록부터 정리
-      for (const id in v) v[id] = v[id].slice(0, Math.ceil(v[id].length / 2));
-      try { localStorage.setItem(LOCAL_KEY + '.versions', JSON.stringify(v)); } catch {}
-    }
+  /* 지운 내용 기록 (이 기기에만) — 오래된 것이 뒤쪽 */
+  readDeletions() { try { return JSON.parse(localStorage.getItem(LOCAL_KEY + '.deletions')) || []; } catch { return []; } }
+  writeDeletions(list) {
+    while (list.length && sizeOf(list) > LOCAL_DELETION_CAP) list.pop(); // 한도를 넘으면 가장 오래된 것부터
+    try { localStorage.setItem(LOCAL_KEY + '.deletions', JSON.stringify(list)); } catch {}
   }
-  async addVersion(id, ver) {
-    const v = this.readVersions();
-    v[id] = [{ id: newId(), ...ver }, ...(v[id] || [])].filter((x) => x.savedAt > historyCutoff()).slice(0, HISTORY_MAX);
-    this.writeVersions(v);
-  }
-  async listVersions(id, limit = HISTORY_MAX, _opts) {
-    return (this.readVersions()[id] || []).filter((x) => x.savedAt > historyCutoff()).slice(0, limit);
-  }
+  async addDeletion(rec) { this.writeDeletions([{ id: newId(), ...rec }, ...this.readDeletions()]); }
+  async listDeletions(noteId) { return this.readDeletions().filter((r) => r.noteId === noteId); }
+
   async trash(id) { this.mark(id, { deletedAt: Date.now() }); }
   async restore(id) { this.mark(id, { deletedAt: null }); }
   mark(id, patch) { // 수정 시각은 바꾸지 않음
@@ -146,11 +138,14 @@ export class CloudStore {
   }
   async remove(id) {
     this.fs.deleteDoc(this.fs.doc(this.col, id)).catch(console.error);
-    // 영구 삭제하면 그 메모의 수정 기록도 함께 삭제
-    this.fs.getDocs(this.versions(id)).then((snap) => this.deleteDocs(snap.docs)).catch(() => {});
+    // 영구 삭제하면 그 메모의 지운 내용 기록도 함께 삭제
+    const { query, where, getDocs } = this.fs;
+    getDocs(query(this.deletions, where('noteId', '==', id))).then((snap) => this.purgeDeletions(snap.docs)).catch(() => {});
   }
-  /* 수정 기록: users/{uid}/notes/{id}/versions/{버전id} */
-  versions(id) { return this.fs.collection(this.col, id, 'versions'); }
+  /* 지운 내용 기록: users/{uid}/deletions/{id} = { noteId, savedAt, items, bytes }
+     사용량: users/{uid}/meta/usage = { deletionBytes } */
+  get deletions() { return this.fs.collection(this.col.parent, 'deletions'); }
+  get usageDoc() { return this.fs.doc(this.col.parent, 'meta', 'usage'); }
   async deleteDocs(docs) {
     for (let i = 0; i < docs.length; i += 400) {
       const batch = this.fs.writeBatch(this.col.firestore);
@@ -158,17 +153,35 @@ export class CloudStore {
       await batch.commit();
     }
   }
-  async addVersion(id, ver) {
-    this.fs.addDoc(this.versions(id), ver).catch(console.error);
+  async purgeDeletions(docs) {
+    if (!docs.length) return;
+    const bytes = docs.reduce((t, d) => t + (d.data().bytes || 0), 0);
+    await this.deleteDocs(docs);
+    await this.fs.setDoc(this.usageDoc, { deletionBytes: this.fs.increment(-bytes) }, { merge: true });
+    if (this.usage != null) this.usage -= bytes;
   }
-  async listVersions(id, limit = HISTORY_MAX, { prune = true } = {}) {
-    const { query, orderBy, limit: lim, getDocs } = this.fs;
-    const snap = await getDocs(query(this.versions(id), orderBy('savedAt', 'desc'), lim(prune ? limit + 50 : limit)));
-    const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    // 30일 지났거나 300개를 넘는 기록은 정리 (기록을 열어볼 때 함께)
-    const old = prune ? snap.docs.filter((d, i) => d.data().savedAt < historyCutoff() || i >= HISTORY_MAX) : [];
-    if (old.length) this.deleteDocs(old).catch(() => {});
-    return all.filter((v) => v.savedAt >= historyCutoff()).slice(0, limit);
+  async addDeletion(rec) {
+    const { addDoc, setDoc, increment, getDoc } = this.fs;
+    const bytes = sizeOf(rec) + 200; // 저장 공간 추정 (색인 포함 대략)
+    addDoc(this.deletions, { ...rec, bytes }).catch(console.error);
+    setDoc(this.usageDoc, { deletionBytes: increment(bytes) }, { merge: true }).catch(() => {});
+    if (this.usage == null) {
+      try { this.usage = (await getDoc(this.usageDoc)).data()?.deletionBytes ?? bytes; } catch { return; }
+    } else this.usage += bytes;
+    if (this.usage > DELETION_CAP_BYTES) this.trimOldest().catch(() => {});
+  }
+  async trimOldest() {
+    const { query, orderBy, limit, getDocs } = this.fs;
+    while (this.usage > DELETION_CAP_BYTES * 0.95) { // 한도의 95% 까지 오래된 것부터 지움
+      const snap = await getDocs(query(this.deletions, orderBy('savedAt', 'asc'), limit(200)));
+      if (snap.empty) break;
+      await this.purgeDeletions(snap.docs);
+    }
+  }
+  async listDeletions(noteId) {
+    const { query, where, getDocs } = this.fs;
+    const snap = await getDocs(query(this.deletions, where('noteId', '==', noteId)));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => b.savedAt - a.savedAt);
   }
   async trash(id) { this.mark(id, { deletedAt: Date.now() }); }
   async restore(id) { this.mark(id, { deletedAt: null }); }
