@@ -39,5 +39,6 @@ export const I = {
   unmaximize: svg('<rect x="4.5" y="8" width="11.5" height="11.5" rx="1.5"/><path d="M8 8V5.5A1 1 0 0 1 9 4.5h9.5a1 1 0 0 1 1 1V15a1 1 0 0 1-1 1H16"/>'),
   up: svg('<path d="M7 14l5-5 5 5"/>', 'stroke-width="2.2"'),
   down: svg('<path d="M7 10l5 5 5-5"/>', 'stroke-width="2.2"'),
+  history: svg('<path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5v4h4"/><path d="M12 7.5V12l3 2"/>'),
   cloud: svg('<path d="M7 18a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 9.5a4 4 0 0 1-.5 8.5z"/>'),
 };

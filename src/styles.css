@@ -303,3 +303,21 @@ body.is-desktop { overflow: hidden; }
 .format-bar.more-left.more-right { -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
 .format-bar { scrollbar-width: none; }
 .format-bar::-webkit-scrollbar, .is-desktop .format-bar::-webkit-scrollbar { display: none; height: 0; }
+
+/* ── 수정 기록 ── */
+.history-info { margin: 0 0 10px; }
+.history-list { display: flex; flex-direction: column; gap: 6px; padding-bottom: 16px; }
+.history-item { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.history-item:hover { border-color: var(--primary); }
+.hi-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+.hi-top .muted { font-size: 12px; }
+.hi-tag { font-size: 11px; padding: 1px 6px; border-radius: 8px; background: rgba(122,15,176,.12); color: var(--primary); }
+.hi-text { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-bar { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; position: sticky; top: 0; background: var(--surface); padding: 4px 0; z-index: 1; }
+.hi-one { margin-bottom: 8px; }
+.history-view { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; background: #fffbe6; color: #222; line-height: 1.6; font-size: 12pt; word-break: break-word; user-select: text; margin-bottom: 16px; }
+.is-desktop .history-view { font-size: 11pt; }
+.history-view img { max-width: 100%; border-radius: 4px; }
+.history-view ul { margin: 0; padding-left: 22px; }
+.history-view p { margin: 0; }
+:root[data-theme="dark"] .history-view { background: #2b2b2b; color: var(--text); }

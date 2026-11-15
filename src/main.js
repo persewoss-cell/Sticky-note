@@ -7,6 +7,7 @@ import { showMenu, confirmDialog, sheet, closeMenu } from './ui.js';
 import { renderNoteWindow } from './noteWindow.js';
 import { ensureFontsIn } from './fonts.js';
 import { maximizeButton } from './maximize.js';
+import { openHistory } from './history.js';
 
 const desktop = window.desktop || null; // Electron preload 가 제공 (Windows 앱일 때만)
 const app = document.getElementById('app');
@@ -288,6 +289,8 @@ function renderList(store, session) {
     const bar = h('div', { class: 'note-topbar' },
       h('button', { class: 'icon-btn', title: '뒤로', html: I.back, onClick: () => history.back() }),
       h('div', { class: 'grow' }),
+      h('button', { class: 'icon-btn', title: '수정 기록', html: I.history, onClick: () => {
+        ed.save.flush(); openHistory({ store, id, keeper: ed.history, onRestore: (html) => ed.replaceContent(html) }); } }),
       pinBtn,
       h('button', { class: 'icon-btn', title: '색상', html: I.palette, onClick: (e) => showMenu(e.currentTarget, [
         { colors: cur().color, onPick: (c) => { store.update(id, { color: c }); localStorage.setItem('sticky.lastColor', c); } }]) }),

@@ -4,6 +4,7 @@ import { I } from './icons.js';
 import { Editor } from './editor.js';
 import { showMenu, confirmDialog } from './ui.js';
 import { maximizeButton } from './maximize.js';
+import { openHistory } from './history.js';
 
 export function renderNoteWindow(root, store, id, isNew) {
   const desktop = window.desktop;
@@ -14,12 +15,18 @@ export function renderNoteWindow(root, store, id, isNew) {
   const bar = h('div', { class: 'note-titlebar' },
     h('button', { class: 'icon-btn', title: '새 메모 (Ctrl+N)', html: I.plus, onClick: () => desktop.newNote() }),
     h('div', { class: 'drag' }),
+    h('button', { class: 'icon-btn', title: '수정 기록 (Ctrl+Shift+H)', html: I.history, onClick: () => showHistory() }),
     h('button', { class: 'icon-btn', title: '메뉴', html: I.more, onClick: (e) => openMenu(e.currentTarget) }),
     maximizeButton(),
     h('button', { class: 'icon-btn', title: '닫기 (Ctrl+W)', html: I.close, onClick: () => close() }));
   win.append(bar, h('div', { class: 'note-scroll' }, ed.body), ed.toolbar);
   root.replaceChildren(win);
   applyNoteColor(win, 'yellow');
+
+  function showHistory() {
+    ed.save.flush();
+    openHistory({ store, id, keeper: ed.history, onRestore: (html) => ed.replaceContent(html) });
+  }
 
   function openMenu(anchor) {
     showMenu(anchor, [
@@ -69,6 +76,7 @@ export function renderNoteWindow(root, store, id, isNew) {
     if (mod && k === 'n') { e.preventDefault(); desktop.newNote(); }
     else if (mod && k === 'w') { e.preventDefault(); close(); }
     else if (mod && k === 'd') { e.preventDefault(); del(); }
+    else if (mod && e.shiftKey && k === 'h') { e.preventDefault(); showHistory(); }
     else if (mod && k === 'h') { e.preventDefault(); desktop.openList(); }
   });
   desktop.onRequestClose?.(() => close());

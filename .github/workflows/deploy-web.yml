@@ -40,4 +40,14 @@ jobs:
           echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
           npx -y firebase-tools@15 deploy --only hosting --non-interactive
-          rm -f "$RUNNER_TEMP/sa.json"
+      - name: Firestore 보안 규칙 배포
+        if: env.HAS_KEY == 'true'
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx -y firebase-tools@15 deploy --only firestore:rules --non-interactive
+      - name: 키 파일 정리
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"

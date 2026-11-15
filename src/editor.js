@@ -6,6 +6,7 @@ import { I } from './icons.js';
 import { h, sanitize, htmlToText, compressImage, debounce, toast } from './util.js';
 import { showMenu, closeMenu } from './ui.js';
 import { FONT_GROUPS, FONTS, ensureFont, previewFont, ensureFontsIn, fontStack } from './fonts.js';
+import { VersionKeeper } from './history.js';
 
 export const TEXT_COLORS = [
   { name: '기본', value: null }, { name: '빨강', value: '#e03131' }, { name: '주황', value: '#e8590c' },
@@ -32,6 +33,7 @@ export class Editor {
     this.savedRange = null;
     this.pendingSize = null;
     this.save = debounce(() => this.saveNow(), 400);
+    this.history = new VersionKeeper(store, id, () => this.currentHtml());
 
     this.body = h('div', {
       class: 'editor-body', contenteditable: 'true', spellcheck: 'false',
@@ -79,13 +81,14 @@ export class Editor {
     this.onScroll = () => this.floatBar.classList.contains('show') && this.positionFloat();
     window.addEventListener('scroll', this.onScroll, true);
     window.addEventListener('resize', this.onScroll);
-    window.addEventListener('beforeunload', () => this.save.flush());
+    window.addEventListener('beforeunload', () => { this.save.flush(); this.history.flush(); });
     // 글씨체 메뉴가 바로 보이도록 글꼴 이름 미리보기를 조용히 받아 둠 (아주 작은 파일)
     setTimeout(() => FONTS.forEach(previewFont), 2500);
   }
 
   destroy() {
     this.save.flush();
+    this.history.flush();
     document.removeEventListener('selectionchange', this.onSel);
     window.removeEventListener('scroll', this.onScroll, true);
     window.removeEventListener('resize', this.onScroll);
@@ -239,13 +242,23 @@ export class Editor {
   }
 
   currentHtml() { return sanitize(this.body.innerHTML); }
+  // 기록에서 되돌리기
+  replaceContent(html) {
+    this.save.flush();
+    ensureFontsIn(html);
+    this.body.innerHTML = sanitize(html);
+    this.updateEmpty();
+    this.saveNow();
+  }
   updateEmpty() { this.body.classList.toggle('empty', !this.body.textContent.trim() && !this.body.querySelector('img, .todo')); }
 
   saveNow() {
     const html = this.currentHtml();
     if (html === this.lastSaved) return;
     if (html.length > 850_000) { toast('메모가 너무 큽니다. 사진을 줄여주세요.'); return; }
+    const prev = this.lastSaved;
     this.lastSaved = html;
+    this.history.noteEdit(prev);
     this.store.update(this.id, { html, text: htmlToText(html) });
   }
   changed() { this.updateEmpty(); this.save(); }

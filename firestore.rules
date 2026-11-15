@@ -1,12 +1,21 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 로그인한 본인만 자기 메모를 읽고 쓸 수 있습니다.
+    function isOwner(uid) { return request.auth != null && request.auth.uid == uid; }
+
+    // 메모: 본인만 읽고 쓰기 + 크기 제한 (Firestore 문서 한도 1MB 이내)
     match /users/{uid}/notes/{noteId} {
-      allow read, delete: if request.auth != null && request.auth.uid == uid;
-      allow create, update: if request.auth != null && request.auth.uid == uid
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid)
         && request.resource.data.html is string
         && request.resource.data.html.size() < 900000;
+
+      // 수정 기록: 본인만
+      match /versions/{versionId} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid) && request.resource.data.html is string
+          && request.resource.data.html.size() < 900000;
+      }
     }
   }
 }

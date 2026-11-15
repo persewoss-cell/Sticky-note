@@ -6,6 +6,10 @@
 //   trash(id) / restore(id)  휴지통으로 이동 / 복원 (deletedAt 표시만 하므로 모든 기기에 동기화됨)
 // Note = { id, html, text, color, pinned, createdAt, updatedAt, deletedAt? }
 export const TRASH_DAYS = 30;
+// 수정 기록(버전): 30일 보관, 메모당 최대 300개
+export const HISTORY_DAYS = 30;
+export const HISTORY_MAX = 300;
+const historyCutoff = () => Date.now() - HISTORY_DAYS * 864e5;
 import { firebaseConfig } from './firebase-config.js';
 
 export const newId = () =>
@@ -60,6 +64,24 @@ export class LocalStore {
     const map = this.read();
     delete map[id];
     this.write(map);
+    const v = this.readVersions(); delete v[id]; this.writeVersions(v);
+  }
+  /* 수정 기록 (이 기기에만) */
+  readVersions() { try { return JSON.parse(localStorage.getItem(LOCAL_KEY + '.versions')) || {}; } catch { return {}; } }
+  writeVersions(v) {
+    try { localStorage.setItem(LOCAL_KEY + '.versions', JSON.stringify(v)); }
+    catch { // 저장 공간이 꽉 차면 가장 오래된 기록부터 정리
+      for (const id in v) v[id] = v[id].slice(0, Math.ceil(v[id].length / 2));
+      try { localStorage.setItem(LOCAL_KEY + '.versions', JSON.stringify(v)); } catch {}
+    }
+  }
+  async addVersion(id, ver) {
+    const v = this.readVersions();
+    v[id] = [{ id: newId(), ...ver }, ...(v[id] || [])].filter((x) => x.savedAt > historyCutoff()).slice(0, HISTORY_MAX);
+    this.writeVersions(v);
+  }
+  async listVersions(id, limit = HISTORY_MAX, _opts) {
+    return (this.readVersions()[id] || []).filter((x) => x.savedAt > historyCutoff()).slice(0, limit);
   }
   async trash(id) { this.mark(id, { deletedAt: Date.now() }); }
   async restore(id) { this.mark(id, { deletedAt: null }); }
@@ -124,6 +146,29 @@ export class CloudStore {
   }
   async remove(id) {
     this.fs.deleteDoc(this.fs.doc(this.col, id)).catch(console.error);
+    // 영구 삭제하면 그 메모의 수정 기록도 함께 삭제
+    this.fs.getDocs(this.versions(id)).then((snap) => this.deleteDocs(snap.docs)).catch(() => {});
+  }
+  /* 수정 기록: users/{uid}/notes/{id}/versions/{버전id} */
+  versions(id) { return this.fs.collection(this.col, id, 'versions'); }
+  async deleteDocs(docs) {
+    for (let i = 0; i < docs.length; i += 400) {
+      const batch = this.fs.writeBatch(this.col.firestore);
+      docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+  }
+  async addVersion(id, ver) {
+    this.fs.addDoc(this.versions(id), ver).catch(console.error);
+  }
+  async listVersions(id, limit = HISTORY_MAX, { prune = true } = {}) {
+    const { query, orderBy, limit: lim, getDocs } = this.fs;
+    const snap = await getDocs(query(this.versions(id), orderBy('savedAt', 'desc'), lim(prune ? limit + 50 : limit)));
+    const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    // 30일 지났거나 300개를 넘는 기록은 정리 (기록을 열어볼 때 함께)
+    const old = prune ? snap.docs.filter((d, i) => d.data().savedAt < historyCutoff() || i >= HISTORY_MAX) : [];
+    if (old.length) this.deleteDocs(old).catch(() => {});
+    return all.filter((v) => v.savedAt >= historyCutoff()).slice(0, limit);
   }
   async trash(id) { this.mark(id, { deletedAt: Date.now() }); }
   async restore(id) { this.mark(id, { deletedAt: null }); }
