@@ -22,6 +22,7 @@ const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 48, 60, 72]
 const MARK_COLOR = 'rgb(1, 2, 3)', MARK_FONT = 'sticky-default-font', MARK_SIZE = 'xxx-large';
 
 const isTouch = matchMedia('(pointer: coarse)').matches;
+const BLOCK_TAGS = /^(DIV|P|LI|UL|OL|H[1-6]|BLOCKQUOTE)$/;
 
 export class Editor {
   constructor(store, id) {
@@ -60,8 +61,11 @@ export class Editor {
     b.addEventListener('mousedown', (e) => { if (this.hitCheckbox(e)) e.preventDefault(); });
     b.addEventListener('touchstart', (e) => { if (this.hitCheckbox(e.touches[0])) e.preventDefault(); }, { passive: false });
     // 드래그 중에는 보조 창 숨김
-    b.addEventListener('pointerdown', () => { this.dragging = true; this.hideFloat(); });
-    window.addEventListener('pointerup', this.onPointerUp = () => { if (this.dragging) { this.dragging = false; this.scheduleFloat(); } });
+    // (휴대폰은 길게 눌러 선택할 때 pointerup 대신 pointercancel 이 오므로 마우스 드래그만 추적)
+    b.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse') { this.dragging = true; this.hideFloat(); } });
+    this.onPointerUp = () => { if (this.dragging) { this.dragging = false; this.scheduleFloat(); } };
+    window.addEventListener('pointerup', this.onPointerUp);
+    window.addEventListener('pointercancel', this.onPointerUp);
 
     this.onSel = () => {
       const sel = document.getSelection();
@@ -86,6 +90,7 @@ export class Editor {
     window.removeEventListener('scroll', this.onScroll, true);
     window.removeEventListener('resize', this.onScroll);
     window.removeEventListener('pointerup', this.onPointerUp);
+    window.removeEventListener('pointercancel', this.onPointerUp);
     this.floatBar.remove();
   }
 
@@ -398,17 +403,63 @@ export class Editor {
   }
   blockAtCaret() { return this.blockOf(this.savedRange?.startContainer); }
 
-  // 맨 바깥에 그냥 놓인 글자들을 줄(div)로 감쌈 → 줄 단위로 체크박스를 붙일 수 있게
-  normalizeBlocks() {
-    const off = getOffsets(this.body);
+  /* 줄 구조 정리
+     메모는 "<div>줄</div>" 이 기본이지만, 붙여넣거나 예전에 쓴 메모는
+     "<div>줄1<br>줄2<br>줄3</div>" 처럼 여러 줄이 한 덩어리인 경우가 많음.
+     체크박스는 한 줄 단위여야 하므로, 필요한 부분만 진짜 한 줄(div)씩 나눔. */
+  isBlock(n) { return n?.nodeType === 1 && BLOCK_TAGS.test(n.tagName); }
+  // 블록 자식과 글자가 섞인 곳의 글자 묶음을 div 로 감쌈
+  wrapInlineRuns(container) {
+    if (![...container.childNodes].some((n) => this.isBlock(n)) && container !== this.body) return;
     let run = [];
-    const flush = () => { if (!run.length) return; const d = document.createElement('div'); run[0].before(d); d.append(...run); run = []; };
-    for (const n of [...this.body.childNodes]) {
-      if (n.nodeType === 1 && /^(DIV|P|UL|OL)$/.test(n.tagName)) flush();
-      else { run.push(n); if (n.nodeName === 'BR') flush(); }
+    const flush = () => {
+      if (run.length && run.some((n) => n.nodeType !== 3 || n.data.trim() || run.length > 1)) {
+        const d = document.createElement('div'); run[0].before(d); d.append(...run);
+      }
+      run = [];
+    };
+    for (const n of [...container.childNodes]) {
+      if (this.isBlock(n)) { flush(); if (!/^(UL|OL)$/.test(n.tagName)) this.wrapInlineRuns(n); }
+      else run.push(n);
     }
     flush();
-    if (off) setOffsets(this.body, off);
+  }
+  // 한 블록 안의 <br> 줄바꿈을 기준으로 블록을 줄마다 나눔 (서식은 그대로 복제됨)
+  splitAtBreaks(block) {
+    const out = [block];
+    let cur = block, br;
+    while ((br = cur.querySelector('br'))) {
+      const rest = document.createRange();
+      rest.setStartAfter(br); rest.setEnd(cur, cur.childNodes.length);
+      const hasAfter = !rest.collapsed && (rest.toString().length > 0 || rest.cloneContents().querySelector?.('img, br'));
+      if (!hasAfter) break; // 줄 끝의 자리표시용 <br> 은 그대로 둠
+      const frag = rest.extractContents();
+      br.remove();
+      const next = cur.cloneNode(false);
+      next.removeAttribute('data-done');
+      next.append(frag);
+      if (!next.textContent && !next.querySelector('img, br')) next.append(document.createElement('br'));
+      if (!cur.textContent && !cur.querySelector('img, br')) cur.append(document.createElement('br'));
+      cur.after(next);
+      out.push(next); cur = next;
+    }
+    return out;
+  }
+  leafBlocks(range) {
+    return [...this.body.querySelectorAll('div, p, li, h1, h2, h3, h4, h5, h6, blockquote')]
+      .filter((b) => !b.querySelector('div, p, li, h1, h2, h3, h4, h5, h6, blockquote, ul, ol') && range.intersectsNode(b));
+  }
+  // 선택한 범위의 줄들을 한 줄씩 정리하고 그 줄 목록을 돌려줌
+  linesInSelection() {
+    const off = getOffsets(this.body);
+    if (!off) return [];
+    this.wrapInlineRuns(this.body);
+    setOffsets(this.body, off);
+    let r = document.getSelection().getRangeAt(0);
+    this.leafBlocks(r).forEach((b) => this.splitAtBreaks(b));
+    setOffsets(this.body, off);
+    r = document.getSelection().getRangeAt(0);
+    return this.leafBlocks(r);
   }
 
   toggleTodo() {
@@ -418,16 +469,14 @@ export class Editor {
       setOffsets(this.body, [0, 0]);
       return this.changed();
     }
-    this.normalizeBlocks();
-    const r = document.getSelection().getRangeAt(0);
-    const blocks = [...this.body.querySelectorAll(':scope > div, :scope > p, li')].filter((b) => r.intersectsNode(b) && !b.querySelector('div, p, li'));
+    const blocks = this.linesInSelection();
     if (!blocks.length) return;
     const allTodo = blocks.every((b) => b.classList.contains('todo'));
     blocks.forEach((b) => {
       if (allTodo) { b.classList.remove('todo'); delete b.dataset.done; if (!b.className) b.removeAttribute('class'); }
       else b.classList.add('todo');
     });
-    this.savedRange = r.cloneRange();
+    this.savedRange = document.getSelection().getRangeAt(0).cloneRange();
     this.refreshState();
     this.changed();
   }
