@@ -8,6 +8,8 @@ import { openHistory } from './history.js';
 
 export function renderNoteWindow(root, store, id, isNew) {
   const desktop = window.desktop;
+  // 메모가 지워져서 닫는 경우: 다음에 켤 때 이 메모를 다시 띄우지 않도록 알림 (예전 설치 버전은 그냥 닫기)
+  const gone = () => (desktop.noteMissing ? desktop.noteMissing() : desktop.closeWindow());
   const ed = new Editor(store, id);
   let note = null, seen = false, closing = false;
 
@@ -45,7 +47,7 @@ export function renderNoteWindow(root, store, id, isNew) {
     if (settings.get().confirmDelete && !(await confirmDialog('이 메모를 휴지통으로 옮길까요?'))) return;
     closing = true;
     store.trash(id);
-    desktop.closeWindow();
+    gone();
   }
 
   function close() {
@@ -64,7 +66,7 @@ export function renderNoteWindow(root, store, id, isNew) {
 
   store.subscribe((list) => {
     const n = list.find((x) => x.id === id && !x.deletedAt); // 휴지통에 들어간 메모는 없는 것으로 취급
-    if (!n) { if (seen && !closing) { closing = true; desktop.closeWindow(); } return; } // 다른 곳에서 삭제됨
+    if (!n) { if (seen && !closing) { closing = true; gone(); } return; } // 다른 곳에서 삭제됨
     seen = true; note = n;
     pinBtn.classList.toggle('active', !!n.pinned);
     pinBtn.title = n.pinned ? '목록 상단 고정 해제' : '목록 상단에 고정';
@@ -73,7 +75,7 @@ export function renderNoteWindow(root, store, id, isNew) {
     document.title = (htmlToText(n.html).split('\n')[0] || '새 메모').slice(0, 60);
   });
   // 존재하지 않는 메모로 열린 창은 정리
-  setTimeout(() => { if (!seen && !closing) { closing = true; desktop.closeWindow(); } }, isNew ? 15000 : 8000);
+  setTimeout(() => { if (!seen && !closing) { closing = true; gone(); } }, isNew ? 15000 : 8000);
 
   window.addEventListener('focus', () => document.body.classList.remove('blurred'));
   window.addEventListener('blur', () => document.body.classList.add('blurred'));

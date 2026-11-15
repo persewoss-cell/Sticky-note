@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('desktop', {
   noteDeleted: (id) => ipcRenderer.send('note:deleted', id),
   openList: () => ipcRenderer.send('list:open'),
   closeWindow: () => ipcRenderer.send('window:close'),
+  noteMissing: () => ipcRenderer.send('note:missing'),
   closeAllNotes: () => ipcRenderer.send('notes:closeAll'),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSetting: (key, value) => ipcRenderer.invoke('settings:set', key, value),

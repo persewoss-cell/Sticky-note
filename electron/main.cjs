@@ -47,7 +47,8 @@ const isAppUrl = (url) => url.startsWith('app://') || (DEV_URL && url.startsWith
 
 function loadPage(win, hash) {
   win.webContents.on('did-fail-load', (_e, code, _desc, url, isMainFrame) => {
-    if (!isMainFrame || code === -3 /* 취소 */ || useBundled || DEV_URL || !REMOTE_URL || !url.startsWith(REMOTE_URL)) return;
+    // (여러 창이 동시에 실패해도 각 창이 모두 내장 버전으로 넘어가도록 useBundled 와 상관없이 처리)
+    if (!isMainFrame || code === -3 /* 취소 */ || DEV_URL || !REMOTE_URL || !url.startsWith(REMOTE_URL)) return;
     console.warn('웹 주소를 불러오지 못해 내장 버전을 사용합니다:', code);
     useBundled = true;
     win.loadURL(pageUrl(hash));
@@ -118,7 +119,7 @@ function openList() {
   state.list.open = true; saveState();
   listWin.on('closed', () => {
     listWin = null;
-    if (!quitting) { state.list.open = false; saveState(); } // 사용자가 직접 닫음 → 다음 실행 때 안 띄움
+    if (!quitting) { state.list.open = false; state.lastClosed = { type: 'list' }; saveState(); } // 사용자가 ✕로 닫음
   });
   return listWin;
 }
@@ -154,8 +155,15 @@ function openNote(id, { isNew = false, near = null, focus = true } = {}) {
   watchSessionEnd(win);
   win.on('closed', () => {
     noteWins.delete(id);
-    // 앱 종료 중이면 '열림' 상태 유지 → 다음 실행 때 다시 띄움
-    if (!quitting && state.notes[id]) { state.notes[id].open = false; saveState(); }
+    if (quitting) return; // 앱 종료 중(트레이 종료, PC 끄기)이면 '열림' 상태 유지 → 다음 실행 때 다시 띄움
+    if (win.noteMissing) { // 다른 기기에서 지워진 메모 → 기억에서 빼고, 남은 창이 없으면 목록 창
+      delete state.notes[id];
+      if (state.lastClosed?.id === id) state.lastClosed = null;
+      saveState();
+      if (!visibleWindows().length) openList();
+      return;
+    }
+    if (state.notes[id]) { state.notes[id].open = false; state.lastClosed = { type: 'note', id }; saveState(); }
   });
   return win;
 }
@@ -177,6 +185,10 @@ ipcMain.on('window:toggleMaximize', (e) => {
   if (w) (w.isMaximized() ? w.unmaximize() : w.maximize());
 });
 ipcMain.handle('window:isMaximized', (e) => !!BrowserWindow.fromWebContents(e.sender)?.isMaximized());
+ipcMain.on('note:missing', (e) => {
+  const w = BrowserWindow.fromWebContents(e.sender);
+  if (w) { w.noteMissing = true; w.close(); }
+});
 ipcMain.on('notes:closeAll', () => { for (const w of noteWins.values()) if (!w.isDestroyed()) w.close(); });
 ipcMain.handle('settings:get', () => ({ ...state.settings, launchAtStartup: app.getLoginItemSettings({ args: ['--hidden'] }).openAtLogin }));
 ipcMain.handle('settings:set', (_e, key, value) => {
@@ -208,7 +220,15 @@ function createTray() {
 }
 
 /* ───────── 시작 ───────── */
-app.on('second-instance', () => openList());
+const visibleWindows = () => BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed());
+// ✕로 창을 다 닫은 뒤 다시 켜면: 마지막으로 닫은 창 하나만 (메모 또는 목록)
+function openLastClosed() {
+  const last = state.lastClosed;
+  if (last?.type === 'note' && state.notes[last.id]) return openNote(last.id);
+  return openList();
+}
+// 이미 트레이에서 실행 중일 때 아이콘을 다시 누른 경우
+app.on('second-instance', () => (visibleWindows().length ? openList() : openLastClosed()));
 app.on('before-quit', () => { quitting = true; });
 // Windows 를 끄거나 로그아웃할 때도 '종료 중'으로 처리 → 열려 있던 메모를 그대로 기억
 function watchSessionEnd(win) {
@@ -236,6 +256,11 @@ app.whenReady().then(() => {
   toRestore.forEach((id) => openNote(id, { focus: false }));
   // Windows 로그인 시 자동 실행(--hidden)이면 메모만 복원하고 목록은 띄우지 않음 (트레이에 상주)
   // 마지막 상태 그대로: 목록 창은 꺼질 때 열려 있었을 때만 (열린 게 하나도 없었으면 목록 창)
-  if (!START_HIDDEN && (state.list.open !== false || toRestore.length === 0)) openList();
+  if (toRestore.length) {
+    // 종료 직전 상태 그대로 (목록 창은 그때 열려 있었을 때만)
+    if (!START_HIDDEN && state.list.open !== false) openList();
+  } else if (state.lastClosed?.type === 'note' || !START_HIDDEN) {
+    openLastClosed(); // ✕로 하나씩 닫고 꺼졌던 경우 → 마지막으로 닫은 창 하나
+  }
 });
 app.on('will-quit', () => globalShortcut.unregisterAll());
