@@ -6,7 +6,7 @@ import { Editor } from './editor.js';
 import { showMenu, confirmDialog, sheet, closeMenu } from './ui.js';
 import { renderNoteWindow } from './noteWindow.js';
 import { ensureFontsIn } from './fonts.js';
-import { maximizeButton } from './maximize.js';
+import { maximizeButton, minimizeButton } from './maximize.js';
 import { openHistory } from './history.js';
 
 const desktop = window.desktop || null; // Electron preload 가 제공 (Windows 앱일 때만)
@@ -123,7 +123,7 @@ async function offerMigration(cloud) {
 function titleBar(extraLeft = [], extraRight = []) {
   // Windows 창 상단 (드래그 가능 영역)
   return h('div', { class: 'titlebar' },
-    ...extraLeft, h('div', { class: 'drag' }), ...extraRight, maximizeButton(),
+    ...extraLeft, h('div', { class: 'drag' }), ...extraRight, minimizeButton(), maximizeButton(),
     h('button', { class: 'icon-btn', title: '닫기', html: I.close, onClick: () => desktop.closeWindow() }));
 }
 

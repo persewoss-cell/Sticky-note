@@ -35,6 +35,7 @@ export const I = {
   cut: svg('<circle cx="6.5" cy="17.5" r="2.8"/><circle cx="17.5" cy="17.5" r="2.8"/><path d="M8.6 15.6L18 4M15.4 15.6L6 4"/>'),
   paste: svg('<rect x="5" y="5" width="14" height="16" rx="2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/>'),
   selectAll: svg('<path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M8.5 10h7M8.5 14h5"/>'),
+  minimize: svg('<path d="M5 12.5h14"/>'),
   maximize: svg('<rect x="5" y="5" width="14" height="14" rx="1.5"/>'),
   unmaximize: svg('<rect x="4.5" y="8" width="11.5" height="11.5" rx="1.5"/><path d="M8 8V5.5A1 1 0 0 1 9 4.5h9.5a1 1 0 0 1 1 1V15a1 1 0 0 1-1 1H16"/>'),
   up: svg('<path d="M7 14l5-5 5 5"/>', 'stroke-width="2.2"'),

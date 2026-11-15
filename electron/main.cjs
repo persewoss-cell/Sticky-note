@@ -165,6 +165,7 @@ ipcMain.on('list:open', () => openList());
 ipcMain.on('window:close', (e) => {
   BrowserWindow.fromWebContents(e.sender)?.close();
 });
+ipcMain.on('window:minimize', (e) => BrowserWindow.fromWebContents(e.sender)?.minimize());
 ipcMain.on('window:toggleMaximize', (e) => {
   const w = BrowserWindow.fromWebContents(e.sender);
   if (w) (w.isMaximized() ? w.unmaximize() : w.maximize());
@@ -189,7 +190,7 @@ function createTray() {
   const icon = nativeImage.createFromPath(path.join(__dirname, 'tray.png'));
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
   tray.setToolTip('스티커 메모');
-  const showAll = () => { let any = false; for (const w of noteWins.values()) if (!w.isDestroyed()) { w.show(); any = true; } if (!any) openList(); };
+  const showAll = () => { let any = false; for (const w of noteWins.values()) if (!w.isDestroyed()) { if (w.isMinimized()) w.restore(); w.show(); any = true; } if (!any) openList(); };
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: '새 메모', accelerator: 'Ctrl+Alt+N', click: () => openNote(crypto.randomUUID().replace(/-/g, ''), { isNew: true }) },
     { label: '노트 목록', click: () => openList() },

@@ -3,7 +3,7 @@ import { h, applyNoteColor, settings, isEmptyHtml, htmlToText } from './util.js'
 import { I } from './icons.js';
 import { Editor } from './editor.js';
 import { showMenu, confirmDialog } from './ui.js';
-import { maximizeButton } from './maximize.js';
+import { maximizeButton, minimizeButton } from './maximize.js';
 import { openHistory } from './history.js';
 
 export function renderNoteWindow(root, store, id, isNew) {
@@ -17,6 +17,7 @@ export function renderNoteWindow(root, store, id, isNew) {
     h('div', { class: 'drag' }),
     h('button', { class: 'icon-btn', title: '지운 내용 기록 (Ctrl+Shift+H)', html: I.history, onClick: () => showHistory() }),
     h('button', { class: 'icon-btn', title: '메뉴', html: I.more, onClick: (e) => openMenu(e.currentTarget) }),
+    minimizeButton(),
     maximizeButton(),
     h('button', { class: 'icon-btn', title: '닫기 (Ctrl+W)', html: I.close, onClick: () => close() }));
   win.append(bar, h('div', { class: 'note-scroll' }, ed.body), ed.toolbar);
