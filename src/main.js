@@ -292,7 +292,7 @@ function renderList(store, session) {
       h('button', { class: 'icon-btn', title: '지운 내용 기록', html: I.history, onClick: () => {
         ed.save.flush(); openHistory({ store, id, log: ed.history, editor: ed }); } }),
       pinBtn,
-      h('button', { class: 'icon-btn', title: '색상', html: I.palette, onClick: (e) => showMenu(e.currentTarget, [
+      h('button', { class: 'icon-btn', title: '메모 색', html: I.rainbow, onClick: (e) => showMenu(e.currentTarget, [
         { colors: cur().color, onPick: (c) => { store.update(id, { color: c }); localStorage.setItem('sticky.lastColor', c); } }]) }),
       h('button', { class: 'icon-btn', title: '더보기', html: I.moreV, onClick: (e) => showMenu(e.currentTarget, [
         { label: '공유', icon: I.share, onClick: () => { ed.save.flush(); shareNotes([cur()]); } },

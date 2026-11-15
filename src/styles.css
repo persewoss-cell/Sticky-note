@@ -335,3 +335,11 @@ body.is-desktop { overflow: hidden; }
 .del-view del { color: var(--danger); text-decoration-thickness: 2px; background: rgba(209,52,56,.08); }
 .hi-actions { display: flex; gap: 6px; justify-content: flex-end; }
 .hi-actions .btn { padding: 6px 12px; font-size: 13px; }
+
+/* 무지개 동그라미 (메모 색 버튼) */
+.rainbow-dot { display: block; width: 16px; height: 16px; border-radius: 50%;
+  background: conic-gradient(#FFE66E, #A1EF9B, #9EDFFF, #D7AFFF, #FFAFDF, #FFE66E); box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); }
+.note-topbar .rainbow-dot { width: 20px; height: 20px; }
+.menu-color-only { min-width: 0; padding-bottom: 0; }
+/* PC 메모 창: 버튼 9개가 기본 폭(320px)에 들어가도록 조금 좁게 */
+.is-desktop .note-titlebar .icon-btn { width: 30px; }

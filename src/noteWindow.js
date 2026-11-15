@@ -12,11 +12,16 @@ export function renderNoteWindow(root, store, id, isNew) {
   let note = null, seen = false, closing = false;
 
   const win = h('div', { class: 'note-window' });
+  const pinBtn = h('button', { class: 'icon-btn', title: '목록 상단에 고정', html: I.pin,
+    onClick: () => store.update(id, { pinned: !note?.pinned, updatedAt: note?.updatedAt }) });
   const bar = h('div', { class: 'note-titlebar' },
     h('button', { class: 'icon-btn', title: '새 메모 (Ctrl+N)', html: I.plus, onClick: () => desktop.newNote() }),
     h('div', { class: 'drag' }),
     h('button', { class: 'icon-btn', title: '지운 내용 기록 (Ctrl+Shift+H)', html: I.history, onClick: () => showHistory() }),
-    h('button', { class: 'icon-btn', title: '메뉴', html: I.more, onClick: (e) => openMenu(e.currentTarget) }),
+    h('button', { class: 'icon-btn', title: '메모 색', html: I.rainbow, onClick: (e) => colorMenu(e.currentTarget) }),
+    h('button', { class: 'icon-btn', title: '노트 목록 (Ctrl+H)', html: I.list, onClick: () => desktop.openList() }),
+    pinBtn,
+    h('button', { class: 'icon-btn', title: '메모 삭제 (Ctrl+D)', html: I.trash, onClick: () => del() }),
     minimizeButton(),
     maximizeButton(),
     h('button', { class: 'icon-btn', title: '닫기 (Ctrl+W)', html: I.close, onClick: () => close() }));
@@ -29,13 +34,11 @@ export function renderNoteWindow(root, store, id, isNew) {
     openHistory({ store, id, log: ed.history, editor: ed });
   }
 
-  function openMenu(anchor) {
+  // 무지개 버튼 → 색 고르는 칸만 한 줄로
+  function colorMenu(anchor) {
     showMenu(anchor, [
       { colors: note?.color || 'yellow', onPick: (c) => { store.update(id, { color: c }); localStorage.setItem('sticky.lastColor', c); } },
-      { label: '노트 목록', icon: I.list, onClick: () => desktop.openList() },
-      { label: note?.pinned ? '목록에서 고정 해제' : '목록 상단에 고정', icon: I.pin, onClick: () => store.update(id, { pinned: !note?.pinned, updatedAt: note?.updatedAt }) },
-      { label: '메모 삭제', icon: I.trash, danger: true, onClick: del },
-    ], { align: 'left' });
+    ], { align: 'right' }).classList.add('menu-color-only');
   }
 
   async function del() {
@@ -63,6 +66,8 @@ export function renderNoteWindow(root, store, id, isNew) {
     const n = list.find((x) => x.id === id && !x.deletedAt); // 휴지통에 들어간 메모는 없는 것으로 취급
     if (!n) { if (seen && !closing) { closing = true; desktop.closeWindow(); } return; } // 다른 곳에서 삭제됨
     seen = true; note = n;
+    pinBtn.classList.toggle('active', !!n.pinned);
+    pinBtn.title = n.pinned ? '목록 상단 고정 해제' : '목록 상단에 고정';
     applyNoteColor(win, n.color);
     ed.setNote(n);
     document.title = (htmlToText(n.html).split('\n')[0] || '새 메모').slice(0, 60);

@@ -114,7 +114,12 @@ function openList() {
   loadPage(listWin, '');
   listWin.once('ready-to-show', () => listWin.show());
   trackBounds(listWin, (bounds) => (state.list.bounds = bounds));
-  listWin.on('closed', () => { listWin = null; });
+  watchSessionEnd(listWin);
+  state.list.open = true; saveState();
+  listWin.on('closed', () => {
+    listWin = null;
+    if (!quitting) { state.list.open = false; saveState(); } // 사용자가 직접 닫음 → 다음 실행 때 안 띄움
+  });
   return listWin;
 }
 
@@ -146,6 +151,7 @@ function openNote(id, { isNew = false, near = null, focus = true } = {}) {
   state.notes[id] = { ...(state.notes[id] || {}), open: true, bounds: b };
   saveState();
   trackBounds(win, (bounds) => (state.notes[id] = { ...(state.notes[id] || {}), bounds }));
+  watchSessionEnd(win);
   win.on('closed', () => {
     noteWins.delete(id);
     // 앱 종료 중이면 '열림' 상태 유지 → 다음 실행 때 다시 띄움
@@ -204,6 +210,12 @@ function createTray() {
 /* ───────── 시작 ───────── */
 app.on('second-instance', () => openList());
 app.on('before-quit', () => { quitting = true; });
+// Windows 를 끄거나 로그아웃할 때도 '종료 중'으로 처리 → 열려 있던 메모를 그대로 기억
+function watchSessionEnd(win) {
+  win.on('query-session-end', () => { quitting = true; flushState(); });
+  win.on('session-end', () => { quitting = true; flushState(); });
+}
+function flushState() { clearTimeout(saveTimer); try { fs.writeFileSync(STATE_FILE(), JSON.stringify(state, null, 1)); } catch {} }
 app.on('window-all-closed', () => { /* 트레이에 계속 상주 (종료는 트레이 메뉴에서) */ });
 
 app.whenReady().then(() => {
@@ -223,6 +235,7 @@ app.whenReady().then(() => {
   const toRestore = Object.entries(state.notes).filter(([, n]) => n.open).map(([id]) => id);
   toRestore.forEach((id) => openNote(id, { focus: false }));
   // Windows 로그인 시 자동 실행(--hidden)이면 메모만 복원하고 목록은 띄우지 않음 (트레이에 상주)
-  if (!START_HIDDEN) openList();
+  // 마지막 상태 그대로: 목록 창은 꺼질 때 열려 있었을 때만 (열린 게 하나도 없었으면 목록 창)
+  if (!START_HIDDEN && (state.list.open !== false || toRestore.length === 0)) openList();
 });
 app.on('will-quit', () => globalShortcut.unregisterAll());
