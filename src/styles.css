@@ -321,3 +321,12 @@ body.is-desktop { overflow: hidden; }
 .history-view ul { margin: 0; padding-left: 22px; }
 .history-view p { margin: 0; }
 :root[data-theme="dark"] .history-view { background: #2b2b2b; color: var(--text); }
+
+/* 휴대폰: 선택 중에는 하단 막대 자리에 보조 창 */
+.toolbar-wrap { flex: none; }
+.float-bar.docked { position: static; display: none; box-shadow: none; border-radius: 0; background: transparent; color: inherit;
+  border-top: 1px solid rgba(0,0,0,.06); padding: 4px 4px max(4px, env(safe-area-inset-bottom)); max-width: none !important; }
+.toolbar-wrap.selecting .format-bar { display: none; }
+.toolbar-wrap.selecting .float-bar.docked { display: flex; }
+.float-bar.docked .fb-group + .fb-group, .float-bar.docked .fb-row + .fb-row { border-color: rgba(0,0,0,.1); }
+.note-dark .float-bar.docked .fb-group + .fb-group, :root[data-theme="dark"] .float-bar.docked .fb-group + .fb-group { border-color: rgba(255,255,255,.15); }

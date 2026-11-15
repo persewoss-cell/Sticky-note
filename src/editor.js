@@ -43,8 +43,14 @@ export class Editor {
 
     this.sizeControls = [];
     this.stateButtons = [];
-    this.toolbar = this.buildBottomBar();
+    this.formatBar = this.buildBottomBar();
     this.floatBar = this.buildFloatBar();
+    // 휴대폰: 보조 창을 글자 근처에 띄우면 안드로이드 기본 메뉴와 겹치므로,
+    // 글자를 선택하는 동안 하단 막대 자리가 보조 창으로 바뀜
+    this.docked = isTouch;
+    this.toolbar = h('div', { class: 'toolbar-wrap' }, this.formatBar, this.docked ? this.floatBar : null);
+    if (this.docked) this.floatBar.classList.add('docked');
+    else document.body.append(this.floatBar);
 
     const b = this.body;
     b.addEventListener('input', (e) => this.onInput(e));
@@ -182,7 +188,6 @@ export class Editor {
         g(this.button('color'), this.button('font'), this.sizeControl()),
         g(this.button('todo'), this.button('bullets'), this.button('clear'))));
     bar.addEventListener('mousedown', (e) => { if (e.target.tagName !== 'INPUT') e.preventDefault(); });
-    document.body.append(bar);
     return bar;
   }
 
@@ -196,11 +201,20 @@ export class Editor {
     const sel = document.getSelection();
     const inside = sel.rangeCount && this.body.contains(sel.anchorNode) && !sel.isCollapsed;
     const usingBar = this.floatBar.contains(document.activeElement) || document.querySelector('.menu');
-    if (inside) { this.floatBar.classList.add('show'); this.positionFloat(); }
-    else if (!usingBar) this.hideFloat();
+    if (inside) {
+      this.floatBar.classList.add('show');
+      this.toolbar.classList.toggle('selecting', this.docked);
+      this.positionFloat();
+    } else if (!usingBar) this.hideFloat();
   }
-  hideFloat() { this.floatBar.classList.remove('show'); }
+  hideFloat() { this.floatBar.classList.remove('show'); this.toolbar?.classList.remove('selecting'); }
   positionFloat() {
+    if (this.docked) { // 하단 고정: 한 줄에 다 들어가는지만 확인
+      const [r1, r2] = this.floatBar.children;
+      this.floatBar.classList.remove('stacked');
+      if (r2.offsetTop > r1.offsetTop) this.floatBar.classList.add('stacked');
+      return;
+    }
     const r = this.savedRange;
     if (!r) return;
     const rect = r.getBoundingClientRect();
