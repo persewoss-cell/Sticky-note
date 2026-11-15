@@ -3,6 +3,7 @@ import { h, applyNoteColor, settings, isEmptyHtml, htmlToText } from './util.js'
 import { I } from './icons.js';
 import { Editor } from './editor.js';
 import { showMenu, confirmDialog } from './ui.js';
+import { maximizeButton } from './maximize.js';
 
 export function renderNoteWindow(root, store, id, isNew) {
   const desktop = window.desktop;
@@ -14,6 +15,7 @@ export function renderNoteWindow(root, store, id, isNew) {
     h('button', { class: 'icon-btn', title: '새 메모 (Ctrl+N)', html: I.plus, onClick: () => desktop.newNote() }),
     h('div', { class: 'drag' }),
     h('button', { class: 'icon-btn', title: '메뉴', html: I.more, onClick: (e) => openMenu(e.currentTarget) }),
+    maximizeButton(),
     h('button', { class: 'icon-btn', title: '닫기 (Ctrl+W)', html: I.close, onClick: () => close() }));
   win.append(bar, h('div', { class: 'note-scroll' }, ed.body), ed.toolbar);
   root.replaceChildren(win);

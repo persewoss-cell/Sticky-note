@@ -20,9 +20,29 @@ export function applyNoteColor(el, key) {
   el.classList.toggle('note-dark', !!c.dark);
 }
 
+// 서식에 필요한 스타일만 남기고 나머지는 지움 (글자색·형광펜·글씨체·크기·굵기 등)
+const STYLE_PROPS = new Set(['color', 'background-color', 'font-family', 'font-size', 'font-weight', 'font-style', 'text-decoration', 'text-decoration-line']);
+const SAFE_VALUE = /^(?:[#\w\s,.'"%-]+|rgba?\([\d\s.,%]+\))$/;
+export function filterStyle(style) {
+  return style.split(';').map((d) => {
+    const i = d.indexOf(':');
+    if (i < 0) return '';
+    const prop = d.slice(0, i).trim().toLowerCase(), val = d.slice(i + 1).trim();
+    return STYLE_PROPS.has(prop) && SAFE_VALUE.test(val) && !/url|expression/i.test(val) ? `${prop}: ${val}` : '';
+  }).filter(Boolean).join('; ');
+}
+DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
+  if (data.attrName === 'style') {
+    data.attrValue = filterStyle(data.attrValue);
+    if (!data.attrValue) data.keepAttr = false;
+  } else if (data.attrName === 'class') {
+    data.attrValue = data.attrValue.split(/\s+/).filter((c) => c === 'todo').join(' '); // 체크박스 줄만 허용
+    if (!data.attrValue) data.keepAttr = false;
+  }
+});
 const PURIFY = {
-  ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'del', 'br', 'p', 'div', 'span', 'ul', 'ol', 'li', 'img', 'a'],
-  ALLOWED_ATTR: ['src', 'href', 'alt'],
+  ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'del', 'br', 'p', 'div', 'span', 'ul', 'ol', 'li', 'img', 'a', 'font'],
+  ALLOWED_ATTR: ['src', 'href', 'alt', 'style', 'class', 'data-done', 'color', 'face'],
   ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|data:image\/(?:png|jpe?g|gif|webp);base64,)/i,
 };
 export const sanitize = (html) => DOMPurify.sanitize(html || '', PURIFY);

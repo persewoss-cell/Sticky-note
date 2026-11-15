@@ -5,6 +5,8 @@ import { I } from './icons.js';
 import { Editor } from './editor.js';
 import { showMenu, confirmDialog, sheet, closeMenu } from './ui.js';
 import { renderNoteWindow } from './noteWindow.js';
+import { ensureFontsIn } from './fonts.js';
+import { maximizeButton } from './maximize.js';
 
 const desktop = window.desktop || null; // Electron preload 가 제공 (Windows 앱일 때만)
 const app = document.getElementById('app');
@@ -120,7 +122,7 @@ async function offerMigration(cloud) {
 function titleBar(extraLeft = [], extraRight = []) {
   // Windows 창 상단 (드래그 가능 영역)
   return h('div', { class: 'titlebar' },
-    ...extraLeft, h('div', { class: 'drag' }), ...extraRight,
+    ...extraLeft, h('div', { class: 'drag' }), ...extraRight, maximizeButton(),
     h('button', { class: 'icon-btn', title: '닫기', html: I.close, onClick: () => desktop.closeWindow() }));
 }
 
@@ -205,6 +207,7 @@ function renderList(store, session) {
 
   function card(n) {
     const isSel = selected.has(n.id);
+    ensureFontsIn(n.html);
     const preview = h('div', { class: 'card-content', html: sanitize(n.html) || '<span class="muted">빈 메모</span>' });
     const el = h('div', { class: 'card' + (isSel ? ' selected' : '') + (n.pinned ? ' pinned' : ''), tabindex: 0, 'data-id': n.id },
       h('div', { class: 'card-bar' }),

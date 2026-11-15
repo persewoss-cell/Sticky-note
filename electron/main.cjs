@@ -82,7 +82,10 @@ const baseWebPrefs = {
 };
 
 function trackBounds(win, onChange) {
-  const save = () => { if (!win.isDestroyed() && !win.isMinimized()) { onChange(win.getBounds()); saveState(); } };
+  // 최대화 상태의 크기는 기억하지 않음 (다시 열 때 원래 크기로)
+  const save = () => { if (!win.isDestroyed() && !win.isMinimized() && !win.isMaximized()) { onChange(win.getBounds()); saveState(); } };
+  win.on('maximize', () => win.webContents.send('window:maximized', true));
+  win.on('unmaximize', () => win.webContents.send('window:maximized', false));
   win.on('moved', save); win.on('resized', save); win.on('move', save); win.on('resize', save);
 }
 
@@ -162,6 +165,11 @@ ipcMain.on('list:open', () => openList());
 ipcMain.on('window:close', (e) => {
   BrowserWindow.fromWebContents(e.sender)?.close();
 });
+ipcMain.on('window:toggleMaximize', (e) => {
+  const w = BrowserWindow.fromWebContents(e.sender);
+  if (w) (w.isMaximized() ? w.unmaximize() : w.maximize());
+});
+ipcMain.handle('window:isMaximized', (e) => !!BrowserWindow.fromWebContents(e.sender)?.isMaximized());
 ipcMain.on('notes:closeAll', () => { for (const w of noteWins.values()) if (!w.isDestroyed()) w.close(); });
 ipcMain.handle('settings:get', () => ({ ...state.settings, launchAtStartup: app.getLoginItemSettings({ args: ['--hidden'] }).openAtLogin }));
 ipcMain.handle('settings:set', (_e, key, value) => {

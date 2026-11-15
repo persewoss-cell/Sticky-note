@@ -8,7 +8,7 @@ document.addEventListener('pointerdown', (e) => { if (openMenu && !openMenu.cont
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
 window.addEventListener('blur', closeMenu);
 
-// items: { label, icon, danger, onClick } | { colors: currentKey, onPick } | 'sep'
+// items: { label, icon, danger, checked, style, onClick } | { header } | { swatches, current, onPick } | { colors: currentKey, onPick } | 'sep'
 export function showMenu(anchor, items, { align = 'right' } = {}) {
   closeMenu();
   const menu = h('div', { class: 'menu', role: 'menu' });
@@ -24,10 +24,21 @@ export function showMenu(anchor, items, { align = 'right' } = {}) {
           }))));
       continue;
     }
+    if (it.header) { menu.append(h('div', { class: 'menu-header' }, it.header)); continue; }
+    if (it.swatches) { // 글자색·형광펜 같은 작은 색 동그라미 줄
+      menu.append(h('div', { class: 'menu-swatches' }, it.swatches.map((sw) =>
+        h('button', {
+          class: 'dot' + (sw.value === null ? ' none' : '') + (sw.value === it.current ? ' on' : ''), title: sw.name,
+          style: sw.value ? `--c:${sw.value}` : '',
+          onClick: () => { closeMenu(); it.onPick(sw.value); },
+        }))));
+      continue;
+    }
     menu.append(h('button', {
-      class: 'menu-item' + (it.danger ? ' danger' : ''), role: 'menuitem',
+      class: 'menu-item' + (it.danger ? ' danger' : '') + (it.checked ? ' checked' : ''), role: 'menuitem',
       onClick: () => { closeMenu(); it.onClick(); },
-    }, it.icon ? h('span', { class: 'mi-icon', html: it.icon }) : null, h('span', {}, it.label)));
+    }, it.icon ? h('span', { class: 'mi-icon', html: it.icon }) : null, h('span', { style: it.style || false }, it.label),
+      it.checked ? h('span', { class: 'mi-check', html: I.check }) : null));
   }
   // 메뉴를 눌러도 편집 중인 메모의 커서(포커스)를 빼앗지 않음
   menu.addEventListener('mousedown', (e) => e.preventDefault());

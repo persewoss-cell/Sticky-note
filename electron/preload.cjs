@@ -12,4 +12,7 @@ contextBridge.exposeInMainWorld('desktop', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSetting: (key, value) => ipcRenderer.invoke('settings:set', key, value),
   onRequestClose: (cb) => ipcRenderer.on('window:requestClose', () => cb()),
+  toggleMaximize: () => ipcRenderer.send('window:toggleMaximize'),
+  isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+  onMaximizeChange: (cb) => ipcRenderer.on('window:maximized', (_e, v) => cb(v)),
 });
