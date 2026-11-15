@@ -40,14 +40,7 @@ jobs:
           echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
           npx -y firebase-tools@15 deploy --only hosting --non-interactive
-      - name: Firestore 보안 규칙 배포
-        if: env.HAS_KEY == 'true'
-        env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: |
-          echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
-          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
-          npx -y firebase-tools@15 deploy --only firestore:rules --non-interactive
+      # 보안 규칙(firestore.rules)은 이 키로 배포할 권한이 없어 Firebase 콘솔 → Firestore → 규칙 탭에 직접 붙여넣습니다.
       - name: 키 파일 정리
         if: always()
         run: rm -f "$RUNNER_TEMP/sa.json"
