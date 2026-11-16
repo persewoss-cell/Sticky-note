@@ -331,7 +331,7 @@ export class Editor {
         continue;
       }
       const st = el.style;
-      if (st.fontSize === MARK_SIZE && this.pendingSize) st.fontSize = this.pendingSize + 'pt';
+      if (st.fontSize === MARK_SIZE && this.pendingSize) st.fontSize = this.pendingSize === 'default' ? '' : this.pendingSize + 'pt';
       if (st.color === MARK_COLOR) st.removeProperty('color');
       if (st.backgroundColor === 'transparent' || st.backgroundColor === 'rgba(0, 0, 0, 0)') st.removeProperty('background-color');
       if (st.fontFamily.includes(MARK_FONT)) st.removeProperty('font-family');
@@ -420,6 +420,51 @@ export class Editor {
     }
     return null;
   }
+  /* ───────── 모양 복사 (Alt+C) ───────── */
+  formatPainter() {
+    const sel = document.getSelection();
+    if (sel.rangeCount && this.body.contains(sel.anchorNode)) this.savedRange = sel.getRangeAt(0).cloneRange();
+    if (!this.savedRange) return;
+    if (this.savedRange.collapsed) {
+      const f = this.captureFormat();
+      try { localStorage.setItem(FORMAT_CLIP, JSON.stringify(f)); } catch {}
+      toast('모양 복사: ' + describeFormat(f) + ' — 글자를 선택하고 Alt+C 를 누르면 적용됩니다', 3000);
+      return;
+    }
+    let f = null;
+    try { f = JSON.parse(localStorage.getItem(FORMAT_CLIP)); } catch {}
+    if (!f) return toast('먼저 원하는 글자에 커서를 두고 Alt+C 로 모양을 복사하세요', 2600);
+    this.applyFormat(f);
+    toast('모양을 적용했습니다', 1200);
+  }
+  captureFormat() {
+    const el = this.anchorEl();
+    const up = (get) => { for (let n = el; n && n !== this.body; n = n.parentElement) { const v = get(n); if (v) return v; } return null; };
+    const state = (cmd) => { try { return document.queryCommandState(cmd); } catch { return false; } };
+    const px = parseFloat(getComputedStyle(el).fontSize) || 16;
+    const explicitSize = up((n) => n.style?.fontSize);
+    return {
+      bold: state('bold'), italic: state('italic'), underline: state('underline'), strike: state('strikeThrough'),
+      color: up((n) => n.style?.color) || null,
+      highlight: up((n) => { const b = n.style?.backgroundColor; return b && b !== 'transparent' && b !== 'rgba(0, 0, 0, 0)' ? b : null; }) || null,
+      font: this.currentFont(),
+      size: explicitSize ? Math.round(px * 0.75 * 2) / 2 : null, // 기본 크기면 null → 적용할 때 각 기기의 기본 크기로
+    };
+  }
+  applyFormat(f) {
+    const state = (cmd) => { try { return document.queryCommandState(cmd); } catch { return false; } };
+    for (const [key, cmd] of [['bold', 'bold'], ['italic', 'italic'], ['underline', 'underline'], ['strike', 'strikeThrough']]) {
+      this.restore();
+      if (!!f[key] !== state(cmd)) this.exec(cmd);
+    }
+    this.applyColor(f.color);
+    this.applyHighlight(f.highlight);
+    this.applyFont(f.font);
+    if (f.size) this.applySize(f.size);
+    else { this.pendingSize = 'default'; this.exec('fontSize', '7', true); this.pendingSize = null; this.refreshState(); }
+    this.savedRange = document.getSelection().rangeCount ? document.getSelection().getRangeAt(0).cloneRange() : this.savedRange;
+  }
+
   currentColor() {
     for (let el = this.anchorEl(); el && el !== this.body; el = el.parentElement) {
       if (el.style?.color) return TEXT_COLORS.find((c) => c.value && sameColor(c.value, el.style.color))?.value ?? null;
@@ -502,6 +547,8 @@ export class Editor {
 
   onKey(e) {
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+    // 모양 복사 (한글과 같은 Alt+C): 커서만 두면 서식 복사, 글자를 선택하고 누르면 적용
+    if (e.altKey && !mod && !e.shiftKey && e.code === 'KeyC') { e.preventDefault(); return this.formatPainter(); }
     if (mod && !e.shiftKey && k === 't') { e.preventDefault(); this.exec('strikeThrough'); }
     else if (mod && e.shiftKey && k === 'l') { e.preventDefault(); this.exec('insertUnorderedList'); }
     else if (mod && e.shiftKey && k === 'c') { e.preventDefault(); this.toggleTodo(); }
@@ -554,6 +601,16 @@ export class Editor {
 }
 
 const fmtPt = (pt) => String(Math.round(pt * 2) / 2);
+const FORMAT_CLIP = 'sticky.formatClip'; // 모양 복사 내용 (같은 PC의 다른 메모 창에서도 적용 가능)
+function describeFormat(f) {
+  const parts = [];
+  if (f.bold) parts.push('굵게'); if (f.italic) parts.push('기울임'); if (f.underline) parts.push('밑줄'); if (f.strike) parts.push('취소선');
+  if (f.color) parts.push(TEXT_COLORS.find((c) => c.value && sameColor(c.value, f.color))?.name || '글자색');
+  if (f.highlight) parts.push('형광펜');
+  if (f.font) parts.push(FONTS.find((x) => x.family === f.font)?.name || f.font);
+  parts.push(f.size ? fmtPt(f.size) + 'pt' : '기본 크기');
+  return parts.join(' · ');
+}
 function sameColor(hex, rgb) {
   const n = parseInt(hex.slice(1), 16);
   return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})` === rgb.replace(/\s+/g, ' ');
