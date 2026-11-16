@@ -22,8 +22,7 @@
   },
   "homepage": "https://github.com/persewoss-cell/Sticky-note#readme",
   "dependencies": {
-    "dompurify": "^3.4.17",
-    "firebase": "^11.10.0"
+    "electron-updater": "^6.8.11"
   },
   "devDependencies": {
     "concurrently": "^9.2.5",
@@ -31,7 +30,9 @@
     "electron": "^33.4.11",
     "electron-builder": "^25.1.8",
     "vite": "^6.4.6",
-    "wait-on": "^8.0.5"
+    "wait-on": "^8.0.5",
+    "firebase": "^11.10.0",
+    "dompurify": "^3.4.17"
   },
   "type": "module",
   "private": true,
@@ -64,6 +65,14 @@
       "shortcutName": "스티커 메모",
       "createDesktopShortcut": true,
       "artifactName": "StickyNote-Setup-${version}.${ext}"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "persewoss-cell",
+        "repo": "Sticky-note",
+        "releaseType": "release"
+      }
+    ]
   }
 }

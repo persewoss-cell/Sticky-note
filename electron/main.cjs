@@ -2,7 +2,7 @@
 //  - 노트 목록 창 1개 + 메모마다 별도 창 (바탕화면에 붙여두는 스티커 메모)
 //  - 창 위치/크기 기억, 다음 실행 때 열려 있던 메모 복원
 //  - 트레이 아이콘, Windows 시작 시 자동 실행, 전역 단축키 Ctrl+Alt+N
-const { app, BrowserWindow, ipcMain, protocol, net, Tray, Menu, screen, globalShortcut, shell, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, net, Tray, Menu, screen, globalShortcut, shell, nativeImage, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -86,6 +86,8 @@ function trackBounds(win, onChange) {
   // 최대화 상태의 크기는 기억하지 않음 (다시 열 때 원래 크기로)
   const save = () => { if (!win.isDestroyed() && !win.isMinimized() && !win.isMaximized()) { onChange(win.getBounds()); saveState(); } };
   win.on('maximize', () => win.webContents.send('window:maximized', true));
+  win.on('focus', () => win.webContents.send('window:focus', true));
+  win.on('blur', () => win.webContents.send('window:focus', false));
   win.on('unmaximize', () => win.webContents.send('window:maximized', false));
   win.on('moved', save); win.on('resized', save); win.on('move', save); win.on('resize', save);
 }
@@ -214,6 +216,8 @@ function createTray() {
     { label: '노트 목록', click: () => openList() },
     { label: '모든 메모 앞으로 가져오기', click: showAll },
     { type: 'separator' },
+    { label: `업데이트 확인 (현재 v${app.getVersion()})`, click: manualCheck },
+    { type: 'separator' },
     { label: '종료', click: () => { quitting = true; app.quit(); } },
   ]));
   tray.on('click', () => openList());
@@ -250,6 +254,7 @@ app.whenReady().then(() => {
   if (state.settings.launchAtStartup === undefined) state.settings.launchAtStartup = true;
   applyLoginItem();
   createTray();
+  setupUpdater();
   globalShortcut.register('CommandOrControl+Alt+N', () => openNote(crypto.randomUUID().replace(/-/g, ''), { isNew: true }));
 
   const toRestore = Object.entries(state.notes).filter(([, n]) => n.open).map(([id]) => id);
@@ -264,3 +269,47 @@ app.whenReady().then(() => {
   }
 });
 app.on('will-quit', () => globalShortcut.unregisterAll());
+
+async function manualCheck() {
+  if (!updater) return dialog.showMessageBox({ type: 'info', title: '스티커 메모', message: '설치된 앱에서만 업데이트를 확인할 수 있습니다.' });
+  asked = false;
+  const r = await updater.checkForUpdates().catch(() => null);
+  if (!r?.isUpdateAvailable) dialog.showMessageBox({ type: 'info', title: '스티커 메모', message: `최신 버전입니다 (v${app.getVersion()}).` });
+}
+/* ───────── 자동 업데이트 (GitHub 릴리스) ─────────
+   켤 때와 6시간마다 새 버전 확인 → 있으면 물어봄 → [업데이트] 누르면 내려받아 설치 후 다시 켜짐
+   (열려 있던 메모는 종료 직전 상태 그대로 다시 열림). [나중에] 누르면 조용히 받아 두었다가 다음 종료 때 설치 */
+let updater = null, asked = false, installNow = false;
+function setupUpdater() {
+  if (!app.isPackaged) return;
+  try { ({ autoUpdater: updater } = require('electron-updater')); } catch (e) { console.error(e); return; }
+  updater.autoDownload = false;
+  updater.autoInstallOnAppQuit = true;
+  const allWins = () => BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed());
+  updater.on('update-available', async (info) => {
+    if (asked) return;
+    asked = true;
+    const { response } = await dialog.showMessageBox({
+      type: 'info', title: '스티커 메모 업데이트', buttons: ['업데이트', '나중에'], defaultId: 0, cancelId: 1, noLink: true,
+      message: `새 버전(${info.version})이 있습니다. 지금 업데이트할까요?`,
+      detail: '내려받은 뒤 자동으로 설치하고 다시 켜집니다. 열려 있던 메모는 그대로 다시 열립니다.\n[나중에]를 누르면 다음에 앱을 종료할 때 설치됩니다.',
+    });
+    installNow = response === 0;
+    updater.downloadUpdate().catch((e) => console.error(e));
+  });
+  updater.on('download-progress', (p) => {
+    if (!installNow) return;
+    tray?.setToolTip(`스티커 메모 — 업데이트 내려받는 중 ${Math.round(p.percent)}%`);
+    allWins().forEach((w) => w.setProgressBar(p.percent / 100));
+  });
+  updater.on('update-downloaded', () => {
+    allWins().forEach((w) => w.setProgressBar(-1));
+    if (!installNow) { tray?.setToolTip('스티커 메모 — 다음 종료 때 업데이트가 설치됩니다'); return; }
+    quitting = true; flushState(); // 열려 있던 창 기억
+    setImmediate(() => updater.quitAndInstall(true, true));
+  });
+  updater.on('error', (e) => { console.error('업데이트 오류', e?.message); allWins().forEach((w) => w.setProgressBar(-1)); tray?.setToolTip('스티커 메모'); });
+  const check = () => updater.checkForUpdates().catch(() => {});
+  setTimeout(check, 5000);
+  setInterval(check, 6 * 60 * 60 * 1000);
+}

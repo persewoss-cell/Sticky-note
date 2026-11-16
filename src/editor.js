@@ -45,9 +45,8 @@ export class Editor {
     this.stateButtons = [];
     this.formatBar = this.buildBottomBar();
     this.floatBar = this.buildFloatBar();
-    // 휴대폰: 보조 창을 글자 근처에 띄우면 안드로이드 기본 메뉴와 겹치므로,
-    // 글자를 선택하는 동안 하단 막대 자리가 보조 창으로 바뀜
-    this.docked = isTouch;
+    // 글자를 선택하는 동안 하단 막대 자리가 보조 창(두 줄)으로 바뀜 (휴대폰·PC 공통)
+    this.docked = true;
     this.toolbar = h('div', { class: 'toolbar-wrap' }, this.formatBar, this.docked ? this.floatBar : null);
     if (this.docked) this.floatBar.classList.add('docked');
     else document.body.append(this.floatBar);

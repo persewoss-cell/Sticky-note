@@ -17,4 +17,5 @@ contextBridge.exposeInMainWorld('desktop', {
   toggleMaximize: () => ipcRenderer.send('window:toggleMaximize'),
   isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
   onMaximizeChange: (cb) => ipcRenderer.on('window:maximized', (_e, v) => cb(v)),
+  onFocusChange: (cb) => ipcRenderer.on('window:focus', (_e, v) => cb(v)),
 });

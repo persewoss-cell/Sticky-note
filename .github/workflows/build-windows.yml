@@ -1,10 +1,12 @@
-# GitHub에 push 하면 Windows 설치 파일(.exe)을 자동으로 만들어 줍니다.
-# Actions 탭 → 최근 실행 → 맨 아래 Artifacts 에서 StickyNote-Windows 다운로드
+# Windows 앱 부분이 바뀌면 설치 파일을 만들어 GitHub 릴리스로 올립니다.
+# 설치된 앱은 켤 때 새 릴리스를 확인해 자동으로 업데이트합니다.
+# (Actions → 실행 → Artifacts 에서도 설치 파일을 받을 수 있음)
 name: Windows 설치 파일 빌드
 
-# 화면(src/) 변경은 웹 배포로 자동 반영되므로, Windows 전용 부분이 바뀔 때만 새 설치 파일을 만듭니다.
+# 화면(src/) 변경은 웹 배포로 자동 반영되므로, Windows 전용 부분이 바뀔 때만 새 버전을 만듭니다.
 on:
   push:
+    branches: [main, claude/windows-sticky-notes-app-sfn2n0]
     paths:
       - 'electron/**'
       - 'package.json'
@@ -12,6 +14,9 @@ on:
       - 'build/**'
       - '.github/workflows/build-windows.yml'
   workflow_dispatch:
+
+permissions:
+  contents: write   # 릴리스 만들기
 
 jobs:
   build:
@@ -23,7 +28,13 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run dist:win
+      - name: 버전 번호 올리기 (빌드할 때마다 1.1.N)
+        run: npm version "1.1.${{ github.run_number }}" --no-git-tag-version --allow-same-version
+      - run: npm run build
+      - name: 설치 파일 만들고 GitHub 릴리스로 올리기
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
         with:
           name: StickyNote-Windows

@@ -77,6 +77,9 @@ export function renderNoteWindow(root, store, id, isNew) {
   // 존재하지 않는 메모로 열린 창은 정리
   setTimeout(() => { if (!seen && !closing) { closing = true; gone(); } }, isNew ? 15000 : 8000);
 
+  // 창이 비활성일 때는 위쪽 아이콘을 숨기고, 위쪽 띠 전체를 잡아 끌 수 있게 함
+  document.body.classList.toggle('blurred', !document.hasFocus());
+  desktop.onFocusChange?.((focused) => document.body.classList.toggle('blurred', !focused)); // 창 활성/비활성 (Windows 기준)
   window.addEventListener('focus', () => document.body.classList.remove('blurred'));
   window.addEventListener('blur', () => document.body.classList.add('blurred'));
   document.addEventListener('keydown', (e) => {

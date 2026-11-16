@@ -343,3 +343,7 @@ body.is-desktop { overflow: hidden; }
 .menu-color-only { min-width: 0; padding-bottom: 0; }
 /* PC 메모 창: 버튼 9개가 기본 폭(320px)에 들어가도록 조금 좁게 */
 .is-desktop .note-titlebar .icon-btn { width: 30px; }
+
+/* PC 메모 창이 비활성일 때: 아이콘은 숨기고 누르지 않게, 위쪽 띠 전체가 창 이동 손잡이 */
+.blurred .note-titlebar button { pointer-events: none; -webkit-app-region: drag; }
+.blurred .float-bar.docked { opacity: 0; pointer-events: none; }
