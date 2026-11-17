@@ -332,7 +332,10 @@ body.is-desktop { overflow: hidden; }
 .note-dark .float-bar.docked .fb-group + .fb-group, :root[data-theme="dark"] .float-bar.docked .fb-group + .fb-group { border-color: rgba(255,255,255,.15); }
 .history-item { cursor: default; }
 .del-view { font-size: 14px; line-height: 1.6; padding: 6px 10px; border-radius: 6px; background: rgba(127,127,127,.08); word-break: break-word; }
-.del-view del { color: var(--danger); text-decoration-thickness: 2px; background: rgba(209,52,56,.08); }
+.del-view .gone { color: var(--danger); font-weight: 600; }
+.del-view mark { background: #fde047; color: inherit; border-radius: 2px; }
+.history-search { padding: 0 0 8px; background: transparent; }
+.history-search .search-icon { right: 10px; }
 .hi-actions { display: flex; gap: 6px; justify-content: flex-end; }
 .hi-actions .btn { padding: 6px 12px; font-size: 13px; }
 

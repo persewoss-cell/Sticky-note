@@ -5,6 +5,7 @@
 //  - 기간 제한 없음 (1명당 약 200MB 넘으면 오래된 것부터 자동 정리)
 import { h, toast, escapeHtml } from './util.js';
 import { sheet } from './ui.js';
+import { I } from './icons.js';
 import { findDeletions } from './lines.js';
 
 const IDLE = 60_000, SESSION_GAP = 10 * 60_000;
@@ -56,17 +57,23 @@ function when(ms) {
   return { label: `${date} ${time}`, rel };
 }
 
-// 원래 줄에서 지운 부분에 취소선 표시
-function renderItem(it) {
+// 원래 줄에서 지운 부분을 빨간색으로 표시 (검색어는 노란 배경)
+const mark = (text, q) => {
+  const esc = escapeHtml(text);
+  if (!q) return esc;
+  const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[&<>"']/g, (c) => escapeHtml(c)), 'gi');
+  return esc.replace(re, (m) => `<mark>${m}</mark>`);
+};
+function renderItem(it, q = '') {
   if (it.type === 'line') {
-    return it.lines.map((l) => `<div class="del-line"><del>${escapeHtml(l) || '&nbsp;'}</del></div>`).join('');
+    return it.lines.map((l) => `<div class="del-line"><span class="gone">${mark(l, q) || '&nbsp;'}</span></div>`).join('');
   }
   let html = '', pos = 0;
   for (const [s, e] of it.spans) {
-    html += escapeHtml(it.line.slice(pos, s)) + `<del>${escapeHtml(it.line.slice(s, e))}</del>`;
+    html += mark(it.line.slice(pos, s), q) + `<span class="gone">${mark(it.line.slice(s, e), q)}</span>`;
     pos = e;
   }
-  return `<div class="del-line">${html + escapeHtml(it.line.slice(pos))}</div>`;
+  return `<div class="del-line">${html + mark(it.line.slice(pos), q)}</div>`;
 }
 const deletedText = (it) => (it.type === 'line' ? it.lines.join('\n') : it.spans.map(([s, e]) => it.line.slice(s, e)).join(' '));
 
@@ -86,22 +93,37 @@ export function openHistory({ store, id, log, editor }) {
     close();
   };
 
+  // 검색: 지운 글자나 그 줄 내용에 검색어가 들어 있는 기록만
+  const search = h('input', { type: 'search', class: 'search-input', placeholder: '지운 내용 검색...' });
+  const listBox = h('div');
+  let all = [];
+  const textOf = (it) => (it.type === 'line' ? it.lines.join('\n') : it.line).toLowerCase();
+  const draw = () => {
+    const q = search.value.trim().toLowerCase();
+    const items = q ? all.filter(({ it }) => textOf(it).includes(q)) : all;
+    listBox.replaceChildren(items.length
+      ? h('div', { class: 'history-list' }, items.map(({ it, savedAt }) => {
+        const t = when(savedAt);
+        return h('div', { class: 'history-item' },
+          h('div', { class: 'hi-top' }, h('b', {}, t.label), t.rel ? h('span', { class: 'muted' }, t.rel) : null,
+            h('span', { class: 'hi-tag' }, it.type === 'line' ? `줄 ${it.lines.length}개 삭제` : '일부 삭제')),
+          h('div', { class: 'del-view', html: renderItem(it, q) }),
+          h('div', { class: 'hi-actions' },
+            h('button', { class: 'btn', onClick: () => copy(it) }, '복사'),
+            editor ? h('button', { class: 'btn btn-primary', onClick: () => reinsert(it) }, '메모에 다시 넣기') : null));
+      }))
+      : h('div', { class: 'empty-state' }, q ? `'${search.value.trim()}' 이(가) 들어간 지운 기록이 없습니다.` : '지운 기록이 없습니다.',
+        q ? null : h('p', { class: 'muted small' }, '예전에 써 둔 내용을 지우면 1분쯤 뒤에 여기에 나타납니다.')));
+  };
+  search.addEventListener('input', draw);
   const render = (records) => {
-    const items = records.flatMap((r) => r.items.map((it) => ({ it, savedAt: r.savedAt })));
+    all = records.flatMap((r) => r.items.map((it) => ({ it, savedAt: r.savedAt })));
     box.replaceChildren(
-      h('p', { class: 'muted small history-info' }, '예전에 써 둔 내용 중 3글자 이상 지운 것을 기록합니다. 기간 제한 없이 보관돼요.'),
-      items.length
-        ? h('div', { class: 'history-list' }, items.map(({ it, savedAt }) => {
-          const t = when(savedAt);
-          return h('div', { class: 'history-item' },
-            h('div', { class: 'hi-top' }, h('b', {}, t.label), t.rel ? h('span', { class: 'muted' }, t.rel) : null,
-              h('span', { class: 'hi-tag' }, it.type === 'line' ? `줄 ${it.lines.length}개 삭제` : '일부 삭제')),
-            h('div', { class: 'del-view', html: renderItem(it) }),
-            h('div', { class: 'hi-actions' },
-              h('button', { class: 'btn', onClick: () => copy(it) }, '복사'),
-              editor ? h('button', { class: 'btn btn-primary', onClick: () => reinsert(it) }, '메모에 다시 넣기') : null));
-        }))
-        : h('div', { class: 'empty-state' }, '지운 기록이 없습니다.', h('p', { class: 'muted small' }, '예전에 써 둔 내용을 지우면 1분쯤 뒤에 여기에 나타납니다.')));
+      h('div', { class: 'search-row open history-search' }, search, h('span', { class: 'search-icon', html: I.search })),
+      h('p', { class: 'muted small history-info' }, '예전에 써 둔 내용 중 3글자 이상 지운 것을 빨간색으로 보여줍니다. 기간 제한 없이 보관돼요.'),
+      listBox);
+    draw();
+    if (matchMedia('(pointer: fine)').matches) search.focus();
   };
 
   store.listDeletions(id).then(render)
