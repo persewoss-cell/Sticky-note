@@ -54,6 +54,19 @@ export class Editor {
     const b = this.body;
     b.addEventListener('input', (e) => this.onInput(e));
     b.addEventListener('paste', (e) => this.onPaste(e));
+    // 이 앱에서 복사·잘라내기한 내용에는 표시를 붙여 둠 → 메모끼리 붙여넣을 때는 서식 유지
+    const markCopy = (e) => {
+      const sel = document.getSelection();
+      if (!sel.rangeCount || sel.isCollapsed || !b.contains(sel.anchorNode)) return;
+      const div = document.createElement('div');
+      div.append(sel.getRangeAt(0).cloneContents());
+      e.clipboardData.setData('text/html', APP_MARK + sanitize(div.innerHTML));
+      e.clipboardData.setData('text/plain', sel.toString());
+      e.preventDefault();
+      if (e.type === 'cut') { document.execCommand('delete'); this.changed(); }
+    };
+    b.addEventListener('copy', markCopy);
+    b.addEventListener('cut', markCopy);
     b.addEventListener('drop', (e) => {
       const files = [...(e.dataTransfer?.files || [])].filter((f) => f.type.startsWith('image/'));
       if (files.length) { e.preventDefault(); this.insertImages(files); }
@@ -395,8 +408,9 @@ export class Editor {
         for (const item of await navigator.clipboard.read()) {
           const img = item.types.find((t) => t.startsWith('image/'));
           if (img) { const blob = await item.getType(img); return this.insertImages([new File([blob], 'paste', { type: img })]); }
-          if (item.types.includes('text/html')) { this.restore(); document.execCommand('insertHTML', false, sanitize(await (await item.getType('text/html')).text())); return this.changed(); }
-          if (item.types.includes('text/plain')) { this.restore(); document.execCommand('insertText', false, await (await item.getType('text/plain')).text()); return this.changed(); }
+          const html = item.types.includes('text/html') ? await (await item.getType('text/html')).text() : '';
+          const text = item.types.includes('text/plain') ? await (await item.getType('text/plain')).text() : '';
+          if (html || text) { this.restore(); this.insertPasted(html, text); return this.changed(); }
         }
       } else {
         const t = await navigator.clipboard.readText();
@@ -574,14 +588,23 @@ export class Editor {
     this.applySize(dir > 0 ? SIZES.find((s) => s > cur) ?? 72 : [...SIZES].reverse().find((s) => s < cur) ?? 8);
   }
 
+  // 다른 곳(웹·한글·엑셀 등)에서 복사한 글은 서식 없이 글자만, 이 앱 메모끼리 복사한 건 서식 그대로
+  insertPasted(html, text) {
+    if (html && html.includes('data-sticky-app')) {
+      const clean = sanitize(html).replace(/<span><\/span>/g, '');
+      ensureFontsIn(clean);
+      document.execCommand('insertHTML', false, clean);
+    } else {
+      document.execCommand('insertText', false, (text || '').replace(/\r\n?/g, '\n'));
+    }
+  }
+
   async onPaste(e) {
     const cd = e.clipboardData;
     const images = [...(cd?.files || [])].filter((f) => f.type.startsWith('image/'));
     e.preventDefault();
     if (images.length) return this.insertImages(images);
-    const html = cd.getData('text/html');
-    if (html) { const clean = sanitize(html); ensureFontsIn(clean); document.execCommand('insertHTML', false, clean); }
-    else document.execCommand('insertText', false, cd.getData('text/plain'));
+    this.insertPasted(cd.getData('text/html'), cd.getData('text/plain'));
   }
 
   async insertImages(files) {
@@ -601,6 +624,7 @@ export class Editor {
 }
 
 const fmtPt = (pt) => String(Math.round(pt * 2) / 2);
+const APP_MARK = '<span data-sticky-app="1"></span>'; // 이 앱에서 복사한 내용 표시 (클립보드를 거쳐도 남도록 태그로)
 const FORMAT_CLIP = 'sticky.formatClip'; // 모양 복사 내용 (같은 PC의 다른 메모 창에서도 적용 가능)
 function describeFormat(f) {
   const parts = [];
