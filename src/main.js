@@ -460,7 +460,7 @@ function watchForUpdates() {
     } catch {}
     apply();
   }
-  setInterval(check, 15 * 60 * 1000);
+  setInterval(check, 5 * 60 * 1000); // 5분마다 새 버전 확인
   setTimeout(check, 20 * 1000);
   document.addEventListener('visibilitychange', () => (document.hidden ? apply() : check()));
   window.addEventListener('blur', () => setTimeout(apply, 1500));
