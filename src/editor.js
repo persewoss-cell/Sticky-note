@@ -261,8 +261,10 @@ export class Editor {
     if (this.lastSaved !== null && this.currentHtml() !== this.lastSaved) return; // 저장 대기 중인 로컬 편집 우선
     const focused = document.activeElement === this.body;
     const caret = focused ? getOffsets(this.body) : null;
+    this.history.beforeRemote();
     this.body.innerHTML = html;
     this.lastSaved = this.currentHtml(); // 브라우저가 정규화한 형태로 기억
+    this.history.remoteUpdate(this.lastSaved); // 다른 기기의 변경은 이 기기의 '지운 내용'으로 치지 않음
     if (caret) setOffsets(this.body, caret);
     this.updateEmpty();
   }

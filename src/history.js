@@ -43,6 +43,12 @@ export class DeletionLog {
   }
 
   flush() { this.check(); }
+
+  // 다른 기기에서 바뀐 내용이 들어올 때 (안 그러면 다른 기기에서 지운 것까지 이 기기가 지운 것으로 또 기록됨)
+  // 1) 바뀌기 전: 이 기기에서 지운 것만 먼저 기록
+  beforeRemote() { if (this.base != null) this.check(); }
+  // 2) 바뀐 뒤: 비교 기준을 새 내용으로
+  remoteUpdate(newHtml) { if (this.base != null) this.base = newHtml; }
 }
 
 /* ───────── 기록 보기 ───────── */
@@ -74,6 +80,18 @@ function renderItem(it, q = '') {
     pos = e;
   }
   return `<div class="del-line">${html + mark(it.line.slice(pos), q)}</div>`;
+}
+// 같은 내용이 10분 안에 두 번 기록된 것(예전 버전에서 두 기기가 함께 기록한 경우)은 하나만
+function dedupe(list) {
+  const out = [], seen = new Map();
+  for (const x of list) { // 최신순
+    const key = x.it.type + '|' + (x.it.type === 'line' ? x.it.lines.join('\n') : x.it.line + '|' + JSON.stringify(x.it.spans));
+    const t = seen.get(key);
+    if (t != null && Math.abs(t - x.savedAt) < 10 * 60 * 1000) continue;
+    seen.set(key, x.savedAt);
+    out.push(x);
+  }
+  return out;
 }
 const deletedText = (it) => (it.type === 'line' ? it.lines.join('\n') : it.spans.map(([s, e]) => it.line.slice(s, e)).join(' '));
 
@@ -117,7 +135,7 @@ export function openHistory({ store, id, log, editor }) {
   };
   search.addEventListener('input', draw);
   const render = (records) => {
-    all = records.flatMap((r) => r.items.map((it) => ({ it, savedAt: r.savedAt })));
+    all = dedupe(records.flatMap((r) => r.items.map((it) => ({ it, savedAt: r.savedAt }))));
     box.replaceChildren(
       h('div', { class: 'search-row open history-search' }, search, h('span', { class: 'search-icon', html: I.search })),
       h('p', { class: 'muted small history-info' }, '예전에 써 둔 내용 중 3글자 이상 지운 것을 빨간색으로 보여줍니다. 기간 제한 없이 보관돼요.'),
