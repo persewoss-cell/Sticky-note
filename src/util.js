@@ -43,6 +43,7 @@ DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
 const PURIFY = {
   ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'del', 'br', 'p', 'div', 'span', 'ul', 'ol', 'li', 'img', 'a', 'font'],
   ALLOWED_ATTR: ['src', 'href', 'alt', 'style', 'class', 'data-done', 'color', 'face'],
+  ALLOW_DATA_ATTR: false, // data-* 는 위에 적은 것(data-done)만
   ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|data:image\/(?:png|jpe?g|gif|webp);base64,)/i,
 };
 export const sanitize = (html) => DOMPurify.sanitize(html || '', PURIFY);

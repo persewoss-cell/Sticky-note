@@ -6,6 +6,8 @@ import { Editor } from './editor.js';
 import { showMenu, confirmDialog, sheet, closeMenu } from './ui.js';
 import { renderNoteWindow } from './noteWindow.js';
 import { ensureFontsIn } from './fonts.js';
+import { applyHanging } from './indent.js';
+import { wrapInlineRuns } from './lines.js';
 import { maximizeButton, minimizeButton } from './maximize.js';
 import { openHistory } from './history.js';
 
@@ -260,6 +262,8 @@ function renderList(store, session) {
     const list = sorted();
     grid.replaceChildren(...(list.length ? list.map(card) : [h('div', { class: 'empty-state' },
       query ? '검색 결과가 없습니다.' : h('div', {}, h('p', {}, '메모가 없습니다.'), h('p', { class: 'muted' }, '+ 버튼을 눌러 새 메모를 만드세요.')))]));
+    // 목록 미리보기에도 내어쓰기 (화면용)
+    requestAnimationFrame(() => grid.querySelectorAll('.card-content').forEach((c) => { wrapInlineRuns(c); applyHanging(c); }));
   }
 
   function toggleSel(id) { selected.has(id) ? selected.delete(id) : selected.add(id); draw(); }
