@@ -7,7 +7,7 @@ import { h, sanitize, htmlToText, compressImage, debounce, toast } from './util.
 import { showMenu, closeMenu } from './ui.js';
 import { FONT_GROUPS, FONTS, ensureFont, previewFont, ensureFontsIn, fontStack } from './fonts.js';
 import { DeletionLog } from './history.js';
-import { applyHanging, markerOf, nextMarker } from './indent.js';
+import { applyHanging, markerOf } from './indent.js';
 import { wrapInlineRuns, splitAtBreaks, leafBlocks, normalizeAll, blockText } from './lines.js';
 
 export const TEXT_COLORS = [
@@ -335,11 +335,6 @@ export class Editor {
 
   onInput(e) {
     this.cleanup();
-    if (e.inputType === 'insertParagraph' && this.pendingMarker) {
-      // 기호 줄에서 Enter → 다음 줄에도 기호 (숫자는 다음 번호)
-      const m = this.pendingMarker; this.pendingMarker = null;
-      document.execCommand('insertText', false, m + ' ');
-    }
     this.hangSoon();
     if (e.inputType === 'insertParagraph') {
       // 체크된 줄에서 Enter → 새 줄은 체크 안 된 상태로
@@ -597,7 +592,6 @@ export class Editor {
     else if (mod && (e.key === ']' || e.key === '>' || e.key === '.')) { e.preventDefault(); this.sizeStep(1); }
     else if (mod && (e.key === '[' || e.key === '<' || e.key === ',')) { e.preventDefault(); this.sizeStep(-1); }
     else if (e.key === 'Escape') this.hideFloat();
-    else if (e.key === 'Enter' && !e.shiftKey && this.markerEnter(e)) { /* 기호 줄 처리 */ }
     else if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Backspace') {
       const sel = document.getSelection();
       if (!sel.isCollapsed) return;
@@ -612,27 +606,6 @@ export class Editor {
       }
     }
   }
-  // 기호(- • 1. ① …)로 시작하는 줄에서 Enter: 다음 줄에 기호 이어 붙이기 / 기호만 있는 빈 줄이면 기호 없애기
-  markerEnter(e) {
-    this.pendingMarker = null;
-    const sel = document.getSelection();
-    if (!sel.rangeCount || !sel.isCollapsed) return false;
-    const blk = this.blockOf(sel.anchorNode);
-    if (!blk || blk.classList.contains('todo') || blk.tagName === 'LI') return false;
-    const text = blockText(blk);
-    const mk = markerOf(text);
-    if (!mk) return false;
-    if (!text.slice(mk.length).trim() && !blk.querySelector('img')) { // 기호만 있는 줄 → 기호 지우고 끝
-      e.preventDefault();
-      blk.innerHTML = '<br>';
-      const r = document.createRange(); r.setStart(blk, 0); r.collapse(true); sel.removeAllRanges(); sel.addRange(r);
-      this.hangSoon(); this.changed();
-      return true;
-    }
-    this.pendingMarker = nextMarker(mk.marker);
-    return false; // Enter 는 그대로 진행 → onInput 에서 기호 넣음
-  }
-
   sizeStep(dir) {
     const cur = parseFloat(this.sizeControls[0].value) || 12;
     this.applySize(dir > 0 ? SIZES.find((s) => s > cur) ?? 72 : [...SIZES].reverse().find((s) => s < cur) ?? 8);
