@@ -331,7 +331,7 @@ export class Editor {
     this.history.noteEdit(prev);
     this.store.update(this.id, { html, text: htmlToText(html) });
   }
-  changed() { this.updateEmpty(); this.save(); }
+  changed() { this.updateEmpty(); this.save(); this.hangSoon(); }
 
   onInput(e) {
     this.cleanup();

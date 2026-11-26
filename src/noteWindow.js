@@ -78,10 +78,24 @@ export function renderNoteWindow(root, store, id, isNew) {
   setTimeout(() => { if (!seen && !closing) { closing = true; gone(); } }, isNew ? 15000 : 8000);
 
   // 창이 비활성일 때는 위쪽 아이콘을 숨기고, 위쪽 띠 전체를 잡아 끌 수 있게 함
+  // 비활성 창을 클릭하면 Windows 가 먼저 창을 활성화하므로, 그 클릭으로 숨어 있던 버튼이 눌리지 않게
+  // '활성화시킨 클릭'을 뗀 뒤에야 버튼을 살림 → 첫 클릭은 메모 창을 고르기만 함
+  let wakeTimer = null, pressing = false;
+  const setFocused = (focused) => {
+    clearTimeout(wakeTimer);
+    if (!focused) { document.body.classList.add('blurred'); return; }
+    if (!document.body.classList.contains('blurred')) return;
+    wakeTimer = setTimeout(() => { if (!pressing) document.body.classList.remove('blurred'); }, 250);
+  };
+  window.addEventListener('pointerdown', () => { pressing = true; }, true);
+  window.addEventListener('pointerup', () => {
+    pressing = false;
+    if (document.hasFocus() && document.body.classList.contains('blurred')) { clearTimeout(wakeTimer); wakeTimer = setTimeout(() => document.body.classList.remove('blurred'), 50); }
+  }, true);
   document.body.classList.toggle('blurred', !document.hasFocus());
-  desktop.onFocusChange?.((focused) => document.body.classList.toggle('blurred', !focused)); // 창 활성/비활성 (Windows 기준)
-  window.addEventListener('focus', () => document.body.classList.remove('blurred'));
-  window.addEventListener('blur', () => document.body.classList.add('blurred'));
+  desktop.onFocusChange?.((focused) => setFocused(focused)); // 창 활성/비활성 (Windows 기준)
+  window.addEventListener('focus', () => setFocused(true));
+  window.addEventListener('blur', () => setFocused(false));
   document.addEventListener('keydown', (e) => {
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
     if (mod && k === 'n') { e.preventDefault(); desktop.newNote(); }

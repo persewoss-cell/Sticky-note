@@ -38,8 +38,7 @@ function prefixWidth(block, length) {
 /** 화면의 모든 줄에 내어쓰기 적용 / 해제 */
 export function applyHanging(root) {
   for (const b of leafBlocks(root)) {
-    if (b.classList.contains('todo') || b.tagName === 'LI') continue;
-    const mk = markerOf(blockText(b));
+    const mk = b.classList.contains('todo') || b.tagName === 'LI' ? null : markerOf(blockText(b)); // 체크박스 줄은 내어쓰기 안 함
     if (!mk) {
       if (b.dataset.hang) { b.style.removeProperty('padding-left'); b.style.removeProperty('text-indent'); delete b.dataset.hang; }
       continue;
