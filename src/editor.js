@@ -48,7 +48,8 @@ export class Editor {
     this.floatBar = this.buildFloatBar();
     // 글자를 선택하는 동안 하단 막대 자리가 보조 창(두 줄)으로 바뀜 (휴대폰·PC 공통)
     this.docked = true;
-    this.toolbar = h('div', { class: 'toolbar-wrap' }, this.formatBar, this.docked ? this.floatBar : null);
+    this.useFloat = false; // 글자를 선택해도 하단 막대는 그대로 (따로 뜨는 보조 창 없음)
+    this.toolbar = h('div', { class: 'toolbar-wrap' }, this.formatBar);
     if (this.docked) this.floatBar.classList.add('docked');
     else document.body.append(this.floatBar);
 
@@ -174,10 +175,12 @@ export class Editor {
 
   buildBottomBar() {
     const sep = () => h('span', { class: 'fmt-sep' });
+    // 평소·선택 중 모두 같은 한 줄: 서식 | 색·글씨체·크기 | 체크박스·글머리·서식 지우기 | 사진
     const bar = h('div', { class: 'format-bar' },
-      this.button('font'), this.sizeControl(), this.button('color'), sep(),
       this.button('bold'), this.button('italic'), this.button('underline'), this.button('strike'), sep(),
-      this.button('bullets'), this.button('todo'), this.button('image'),
+      this.button('color'), this.button('font'), this.sizeControl(), sep(),
+      this.button('todo'), this.button('bullets'), this.button('clear'), sep(),
+      this.button('image'),
       this.fileInput);
     // 마우스 휠로도 좌우 스크롤
     bar.addEventListener('wheel', (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { bar.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
@@ -211,6 +214,7 @@ export class Editor {
     this.floatTimer = setTimeout(() => this.updateFloat(), isTouch ? 350 : 150);
   }
   updateFloat() {
+    if (!this.useFloat) return;
     if (this.dragging) return;
     const sel = document.getSelection();
     const inside = sel.rangeCount && this.body.contains(sel.anchorNode) && !sel.isCollapsed;
@@ -275,6 +279,11 @@ export class Editor {
   /* 내어쓰기 (- 사과, 1. 사과 …): 화면에서만 맞춤 */
   hangSoon() { cancelAnimationFrame(this.hangRaf); this.hangRaf = requestAnimationFrame(() => this.hang()); }
   hang() {
+    // 글씨 크기 칸이 비어 있으면 기본 크기(12)를 보여줌
+    if (this.body.isConnected && this.sizeControls.some((i) => !i.value)) {
+      const pt = fmtPt(Math.round(parseFloat(getComputedStyle(this.body).fontSize) * 0.75 * 2) / 2);
+      this.sizeControls.forEach((i) => { if (!i.value) i.value = pt; });
+    }
     // 맨 첫 줄이 줄(div)로 감싸지지 않은 채 기호로 시작하면 감싸서 맞출 수 있게
     const first = this.body.firstChild;
     if (first && !(first.nodeType === 1 && /^(DIV|P|UL|OL)$/.test(first.tagName))) {
