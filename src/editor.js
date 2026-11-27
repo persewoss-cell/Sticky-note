@@ -50,6 +50,21 @@ export class Editor {
     this.docked = true;
     this.useFloat = false; // 글자를 선택해도 하단 막대는 그대로 (따로 뜨는 보조 창 없음)
     this.toolbar = h('div', { class: 'toolbar-wrap' }, this.formatBar);
+    // PC: 메모 창이 넓으면 하단 막대를 비율 그대로 조금 키움 (최대 1.3배, 좁은 창에서는 그대로)
+    if (document.body.classList.contains('is-desktop')) {
+      const fit = () => {
+        const bar = this.formatBar;
+        bar.style.zoom = '';
+        const cs = getComputedStyle(bar);
+        const natural = [...bar.children].reduce((t, c) => t + (c.offsetParent ? c.getBoundingClientRect().width + parseFloat(getComputedStyle(c).marginLeft) + parseFloat(getComputedStyle(c).marginRight) : 0), 0)
+          + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+        const avail = this.toolbar.clientWidth;
+        if (!natural || !avail) return;
+        const z = Math.min(1.3, Math.max(1, (avail - 6) / natural));
+        bar.style.zoom = z > 1.01 ? z.toFixed(3) : '';
+      };
+      new ResizeObserver(() => requestAnimationFrame(fit)).observe(this.toolbar);
+    }
     if (this.docked) this.floatBar.classList.add('docked');
     else document.body.append(this.floatBar);
 
